@@ -9,6 +9,7 @@ interface TrainingAreaCardProps {
     title: string;
     image?: ImageSourcePropType | string;
     iconName?: string;
+    variant?: 'default' | 'text-only';
     onPress: () => void;
     width?: number;
     height?: number;
@@ -18,6 +19,7 @@ export const TrainingAreaCard: React.FC<TrainingAreaCardProps> = ({
     title,
     image,
     iconName = 'fitness-center',
+    variant = 'default',
     onPress,
     width = rs(250),
     height = rs(280),
@@ -41,8 +43,8 @@ export const TrainingAreaCard: React.FC<TrainingAreaCardProps> = ({
                     width,
                     height,
                     borderRadius: rs(10),
-                    borderWidth: 0,
-                    borderColor: 'transparent',
+                    borderWidth: isFocused ? rs(4) : rs(2),
+                    borderColor: isFocused ? theme.colors.primary : 'rgba(100,100,100, 0.5)',
                     backgroundColor: 'transparent', // Handler by inner
                 },
             ]}
@@ -52,13 +54,19 @@ export const TrainingAreaCard: React.FC<TrainingAreaCardProps> = ({
                     styles.cardContent,
                     {
                         borderRadius: rs(10),
-                        borderWidth: isFocused ? rs(4) : rs(2),
-                        borderColor: isFocused ? theme.colors.primary : 'rgba(100,100,100,0.5)',
-                        backgroundColor: theme.colors.surfaceVariant,
+                        borderWidth: isFocused ? rs(4) : 0, // Border only on focus
+                        borderColor: isFocused ? theme.colors.primary : 'transparent',
+                        backgroundColor: variant === 'text-only' ? '#1A1D24' : theme.colors.surfaceVariant,
                     }
                 ]}
             >
-                {imageSource ? (
+                {variant === 'text-only' ? (
+                    <View style={styles.textOnlyContainer}>
+                        <Text style={styles.textOnlyTitle} numberOfLines={2} ellipsizeMode="tail">
+                            {title.toUpperCase()}
+                        </Text>
+                    </View>
+                ) : imageSource ? (
                     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
                         <Image
                             source={imageSource}
@@ -89,6 +97,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 4,
         elevation: 5,
+        overflow: 'hidden',
     },
     imageBackground: {
         flex: 1,
@@ -120,5 +129,19 @@ const styles = StyleSheet.create({
         flex: 1,
         overflow: 'hidden',
     },
+    textOnlyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: rs(16),
+    },
+    textOnlyTitle: {
+        fontSize: rs(32),
+        fontWeight: 'bold',
+        color: 'white',
+        textAlign: 'center',
+    },
     // ... rest
 });
+
+export default TrainingAreaCard;

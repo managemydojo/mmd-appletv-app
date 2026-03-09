@@ -188,8 +188,7 @@ const HomeScreen: React.FC = () => {
                             renderItem={({ item }: { item: StudyProgram }) => (
                                 <ProgramCard
                                     title={item.name}
-                                    progress={0}
-                                    image={require('../../../assets/dummy/programs/1.png')}
+                                    variant="text-only"
                                     onPress={() => handleProgramPress(item)}
                                 />
                             )}
@@ -202,7 +201,7 @@ const HomeScreen: React.FC = () => {
                             renderItem={({ item }: { item: StudyCategory }) => (
                                 <TrainingAreaCard
                                     title={item.name}
-                                    image={item.image ? { uri: item.image } : require('../../../assets/dummy/training-area/1.png')}
+                                    variant="text-only"
                                     onPress={() => handleTrainingAreaPress(item)}
                                 />
                             )}
