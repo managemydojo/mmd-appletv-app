@@ -14,6 +14,7 @@ import { AuthStackParamList } from '../../navigation';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Logo from '../../../assets/icons/logo.svg';
+import Tick from '../../../assets/icons/tick.svg';
 
 import { AUTH_SCREEN_THEME as SCREEN_THEME } from '../../theme/authTheme';
 
@@ -65,7 +66,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
     const renderSuccessState = () => (
         <View style={styles.successContent}>
-            <Ionicons name="checkmark-circle" size={rs(120)} color={theme.colors.success} style={styles.icon} />
+            <Tick width={rs(120)} height={rs(120)} fill={theme.colors.success} style={styles.icon} />
             <Text style={[styles.title, { color: theme.colors.text, fontSize: theme.fontSize.h2 }]}>
                 Email Sent!
             </Text>
@@ -92,14 +93,6 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
     const renderRequestState = () => (
         <View style={styles.cardContent}>
-            {apiError && (
-                <View style={[styles.errorContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-                    <Text style={[styles.errorText, { color: theme.colors.error, fontSize: theme.fontSize.caption }]}>
-                        {apiError}
-                    </Text>
-                </View>
-            )}
-
             <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.colors.text }]}>Username</Text>
                 <Controller
@@ -112,11 +105,18 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
                             placeholder=""
                             autoCapitalize="none"
                             style={styles.input}
-                        // Using style for container styling if valid, or wrapper
-                        // containerStyle mapping TBD based on TVTextInput check
+                            containerStyle={styles.inputContainer}
                         />
                     )}
                 />
+
+                {apiError && (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>
+                            {apiError}
+                        </Text>
+                    </View>
+                )}
             </View>
 
             {/* Bottom Row Actions - Matching LoginScreen */}
@@ -145,9 +145,6 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <AuthLayout
             subtitle={!isSuccess ? "If you don't know your username contact your school for help." : undefined}
             showHeader={!isSuccess}
-            cardStyle={{
-                height: isSuccess ? undefined : SCREEN_THEME.layout.cardHeightForgotPassword,
-            }}
         >
             {isSuccess ? renderSuccessState() : renderRequestState()}
         </AuthLayout>
@@ -159,7 +156,9 @@ const styles = StyleSheet.create({
     cardContent: {
         // Remove absolute positioning to match LoginScreen
         width: SCREEN_THEME.layout.cardContentWidth,
-        gap: SCREEN_THEME.spacing.cardInnerGapLarge,
+        gap: SCREEN_THEME.spacing.cardInnerGap,
+        paddingTop: rs(60),
+        paddingBottom: rs(80), // Generous bottom padding so the focused button's scale effect isn't clipped
     },
     // ... keep inputGroup and below
 
@@ -172,17 +171,26 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         fontSize: SCREEN_THEME.typography.labelSize,
     },
-    input: {
+    inputContainer: {
         height: SCREEN_THEME.layout.inputHeight,
+        backgroundColor: SCREEN_THEME.colors.inputBg,
+        borderRadius: SCREEN_THEME.layout.inputRadius,
+        borderWidth: 1,
+        borderColor: SCREEN_THEME.colors.borderColor,
+    },
+    input: {
+        flex: 1,
+        height: 'auto',
         fontSize: SCREEN_THEME.typography.labelSize,
         paddingHorizontal: rs(20),
+        backgroundColor: 'transparent',
         color: '#FFFFFF', // Assuming white text for dark bg
     },
     bottomRow: {
         flexDirection: 'row',
         justifyContent: 'center', // Center the Sign In button
         alignItems: 'center',
-        marginTop: rs(72), // Match LoginScreen spacing
+        marginTop: rs(50), // Match LoginScreen spacing
         width: '100%',
         position: 'relative', // For absolute positioning context
     },
@@ -244,13 +252,14 @@ const styles = StyleSheet.create({
     },
     errorContainer: {
         width: '100%',
-        padding: rs(12),
-        borderRadius: rs(8),
-        marginBottom: rs(20),
         alignItems: 'center',
+        paddingVertical: rs(10), // Small spacer
     },
     errorText: {
-        textAlign: 'center',
+        color: '#EF4444', // red-500
+        fontSize: SCREEN_THEME.typography.labelSize,
+        fontFamily: 'SF Pro Display',
         fontWeight: '500',
+        textAlign: 'center',
     },
 });

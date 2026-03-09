@@ -48,14 +48,6 @@ export default function LoginScreen({ navigation }: Props) {
             subtitle="Login to your Manage My Dojo account for access."
         >
             <View style={styles.cardContent}>
-                {/* Error Message */}
-                {(apiError || localError) && (
-                    <View style={styles.errorContainer}>
-                        <Text style={styles.errorText}>
-                            {apiError || localError}
-                        </Text>
-                    </View>
-                )}
                 {/* Username Field */}
                 <View style={styles.inputGroup}>
                     <Text style={[styles.label, { color: theme.colors.text }]}>Username</Text>
@@ -95,6 +87,14 @@ export default function LoginScreen({ navigation }: Props) {
                             )}
                         />
                     </View>
+                    {/* Error Message */}
+                    {(apiError || localError) && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>
+                                {apiError || localError}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Bottom Row Actions */}
@@ -161,11 +161,13 @@ const styles = StyleSheet.create({
         borderRadius: SCREEN_THEME.layout.inputRadius,
         borderWidth: 1,
         borderColor: SCREEN_THEME.colors.borderColor,
-        justifyContent: 'center',
     },
     input: {
+        flex: 1,
+        height: 'auto',
         fontSize: SCREEN_THEME.typography.labelSize,
         paddingHorizontal: rs(20),
+        backgroundColor: 'transparent',
         color: '#FFFFFF', // Assuming white text for dark bg
     },
     passwordContainer: {
@@ -236,17 +238,14 @@ const styles = StyleSheet.create({
     },
     errorContainer: {
         width: '100%',
-        padding: rs(20),
-        backgroundColor: 'rgba(239, 68, 68, 0.2)', // red-500/20
-        borderRadius: rs(12),
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.5)', // red-500/50
-        marginBottom: rs(20),
+        alignItems: 'center',
+        paddingVertical: rs(10), // Small spacer
     },
     errorText: {
-        color: '#FCA5A5', // red-300
-        fontSize: rs(32),
+        color: '#EF4444', // red-500
+        fontSize: SCREEN_THEME.typography.labelSize,
         fontFamily: 'SF Pro Display',
+        fontWeight: '500',
         textAlign: 'center',
     },
 });
