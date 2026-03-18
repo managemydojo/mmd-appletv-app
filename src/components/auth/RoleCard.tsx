@@ -10,27 +10,20 @@ const CARD_THEME = {
     width: rs(539),
     height: rs(476),
     borderRadius: rs(30),
-    borderWidthDefault: rs(1), // outline-1
-    borderWidthFocused: rs(8), // outline-8
+    borderWidthDefault: rs(1),
+    borderWidthFocused: rs(8),
   },
   icon: {
-    size: rs(384), // w-96 h-96 -> 384px (approx, based on Tailwind usually 1rem=4px, 96*4=384)
-    // BUT the design shows image at standard size.
-    // Wait, Tailwind `w-96` = 24rem = 384px.
-    // Admin img: `w-96 h-96`.
-    // Dojo Cast img: `w-[487px] h-[487px]`.
-    // Students img: `w-96 h-96`.
-    // I will stick to a reasonable consistent size or allow override?
-    // Let's use 384px as base.
+    size: rs(384),
   },
   typography: {
-    labelSize: rs(60), // text-6xl -> 3.75rem = 60px
+    labelSize: rs(60),
   },
   colors: {
-    cardFill: '#020617', // bg-slate-950
-    borderDefault: '#FFFFFF', // outline-white
-    borderFocused: '#93C5FD', // outline-blue-300
-    text: '#F8FAFC', // text-Backgrounds-Primary (assuming light)
+    cardFill: '#020617',
+    borderDefault: '#FFFFFF',
+    borderFocused: '#93C5FD',
+    text: '#F8FAFC',
   },
 } as const;
 
@@ -38,81 +31,119 @@ interface RoleCardProps {
   title: string;
   Icon: React.FC<SvgProps>;
   onPress: () => void;
-  imageStyle?: any; // To handle the specific positioning/sizing differences if strictly needed?
-  // For now, I'll keep it consistent.
+  /** When true, the card is grayed out, non-focusable, and shows a "Coming Soon" badge */
+  disabled?: boolean;
 }
 
-export const RoleCard: React.FC<RoleCardProps> = ({ title, Icon, onPress }) => {
+export const RoleCard: React.FC<RoleCardProps> = ({
+  title,
+  Icon,
+  onPress,
+  disabled = false,
+}) => {
   return (
-    <FocusableCard
-      onPress={onPress}
-      style={[
-        styles.card,
-        {
-          backgroundColor: CARD_THEME.colors.cardFill,
-          borderColor: CARD_THEME.colors.borderDefault,
-          borderWidth: CARD_THEME.layout.borderWidthDefault,
-        },
-      ]}
-      focusedStyle={{
-        borderColor: CARD_THEME.colors.borderFocused,
-        borderWidth: CARD_THEME.layout.borderWidthFocused,
-        backgroundColor: CARD_THEME.colors.cardFill, // Ensure bg stays dark
-        zIndex: 10,
-      }}
-      scaleOnFocus={true}
-    >
-      <View style={styles.content}>
-        {/* Images in design have absolute positioning or specific layouts.
-                    For a reusable component, centering is safest unless specified.
-                    The design shows images partially cropped or positioned.
-                    Refactoring for scalability -> Center standard layout.
-                */}
-        <View style={styles.iconContainer}>
-          <Icon width={CARD_THEME.icon.size} height={CARD_THEME.icon.size} />
+    <View style={disabled ? styles.disabledWrapper : undefined}>
+      <FocusableCard
+        onPress={disabled ? undefined : onPress}
+        // `focusable={false}` prevents Apple TV / Android TV remote from
+        // placing focus on this card entirely when it is disabled
+        focusable={!disabled}
+        style={[
+          styles.card,
+          {
+            backgroundColor: CARD_THEME.colors.cardFill,
+            borderColor: disabled
+              ? 'rgba(255,255,255,0.15)'
+              : CARD_THEME.colors.borderDefault,
+            borderWidth: CARD_THEME.layout.borderWidthDefault,
+          },
+        ]}
+        focusedStyle={
+          disabled
+            ? undefined
+            : {
+                borderColor: CARD_THEME.colors.borderFocused,
+                borderWidth: CARD_THEME.layout.borderWidthFocused,
+                backgroundColor: CARD_THEME.colors.cardFill,
+                zIndex: 10,
+              }
+        }
+        scaleOnFocus={!disabled}
+      >
+        <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <Icon width={CARD_THEME.icon.size} height={CARD_THEME.icon.size} />
+          </View>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: disabled
+                  ? 'rgba(248,250,252,0.3)'
+                  : CARD_THEME.colors.text,
+                fontSize: CARD_THEME.typography.labelSize,
+              },
+            ]}
+          >
+            {title}
+          </Text>
         </View>
-        <Text
-          style={[
-            styles.title,
-            {
-              color: CARD_THEME.colors.text,
-              fontSize: CARD_THEME.typography.labelSize,
-            },
-          ]}
-        >
-          {title}
-        </Text>
-      </View>
-    </FocusableCard>
+
+        {/* Coming Soon badge — shown only on disabled cards */}
+        {disabled && (
+          <View style={styles.comingSoonBadge}>
+            <Text style={styles.comingSoonText}>Coming Soon</Text>
+          </View>
+        )}
+      </FocusableCard>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  disabledWrapper: {
+    opacity: 0.35,
+  },
   card: {
     width: CARD_THEME.layout.width,
     height: CARD_THEME.layout.height,
     borderRadius: CARD_THEME.layout.borderRadius,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden', // Ensure rounded corners clip content
+    overflow: 'hidden',
   },
   content: {
     alignItems: 'center',
-    justifyContent: 'space-between', // Push content apart
+    justifyContent: 'space-between',
     flex: 1,
     width: '100%',
-    paddingBottom: rs(40), // match previous bottom offset
+    paddingBottom: rs(40),
   },
   iconContainer: {
     marginBottom: rs(20),
     justifyContent: 'center',
     alignItems: 'center',
-    flex: 1, // Allow icon to take up remaining space centrally
+    flex: 1,
   },
   title: {
     fontFamily: 'SF Compact',
     fontWeight: '400',
     textAlign: 'center',
-    // Removed absolute positioning
+  },
+  comingSoonBadge: {
+    position: 'absolute',
+    top: rs(20),
+    right: rs(20),
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: rs(20),
+    paddingHorizontal: rs(20),
+    paddingVertical: rs(8),
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  comingSoonText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: rs(22),
+    fontWeight: '500',
   },
 });

@@ -1,0 +1,8 @@
+# Signing Properties Example
+# Copy this to android/signing.properties and fill in your values.
+# NEVER commit signing.properties to git.
+
+MMD_RELEASE_STORE_FILE=mmd-release.jks
+MMD_RELEASE_STORE_PASSWORD=your_store_password_here
+MMD_RELEASE_KEY_ALIAS=your_key_alias_here
+MMD_RELEASE_KEY_PASSWORD=your_key_password_here

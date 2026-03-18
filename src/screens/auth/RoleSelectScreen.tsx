@@ -21,15 +21,15 @@ const SCREEN_THEME = {
     headerWidth: rs(699),
   },
   spacing: {
-    mainGap: rs(64), // gap-16 -> 64px (Header to Cards)
-    headerGroupGap: rs(48), // gap-12 -> 48px (Welcome Group to Select Role)
-    welcomeGroupGap: rs(10), // gap-2.5 -> 10px (Logo to Welcome text)
-    cardRowGap: rs(36), // gap-9 -> 36px (Between cards)
+    mainGap: rs(64),
+    headerGroupGap: rs(48),
+    welcomeGroupGap: rs(10),
+    cardRowGap: rs(36),
   },
   typography: {
-    welcomeSize: rs(128), // text-9xl
-    selectRoleSize: rs(96), // text-8xl
-    logoSize: rs(96), // w-24 h-24 -> 96px
+    welcomeSize: rs(128),
+    selectRoleSize: rs(96),
+    logoSize: rs(96),
   },
 } as const;
 
@@ -77,20 +77,25 @@ export default function RoleSelectScreen({ navigation }: Props) {
 
         {/* ── Card Row ── */}
         <View style={styles.cardsContainer}>
+          {/* Student — fully enabled */}
           <RoleCard
             title="Students"
             Icon={StudentIcon}
             onPress={() => handleRoleSelect('student')}
           />
+          {/* Dojo Cast — disabled (Coming Soon) */}
           <RoleCard
             title="Dojo Cast"
             Icon={DojoIcon}
             onPress={() => handleRoleSelect('dojo')}
+            disabled
           />
+          {/* Admin — disabled (Coming Soon) */}
           <RoleCard
             title="Admin"
             Icon={AdminIcon}
             onPress={() => handleRoleSelect('admin')}
+            disabled
           />
         </View>
       </View>
@@ -134,9 +139,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: 'SF Compact',
     fontSize: SCREEN_THEME.typography.selectRoleSize,
-    fontWeight: '400', // Tailwind class didn't specify weight for this one, but default for headers usually bold?
-    // Prompt: `font-['SF_Compact']` implies default weight unless specified.
-    // Previous code had 556/Medium. I'll stick to 400 or inherit.
+    fontWeight: '400',
     textAlign: 'center',
   },
   cardsContainer: {
@@ -144,6 +147,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: SCREEN_THEME.spacing.cardRowGap,
-    width: SCREEN_THEME.layout.containerWidth, // Constrain width if needed to wrap, but row implies fitting.
+    width: SCREEN_THEME.layout.containerWidth,
   },
 });

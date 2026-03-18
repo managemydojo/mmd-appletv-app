@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ImageBackground, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
@@ -14,15 +14,13 @@ import { AnnouncementsView } from '../../components/student/AnnouncementsView';
 // Data & Types
 import { StudyCategory, StudyProgram } from '../../types/study';
 
-// Assets
-const BackgroundImage = require('../../../assets/images/student-background.png');
-
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StudentStackParamList } from '../../navigation';
 import { useStudyStore } from '../../store/useStudyStore';
 import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
 import { StudyContentItem } from '../../types/study';
+import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   StudentStackParamList,
@@ -63,6 +61,9 @@ const HomeScreen: React.FC = () => {
       .filter(Boolean)
       .slice(0, 10) as StudyContentItem[];
   }, [history, contentItems]);
+
+  // Fetch Vimeo thumbnails for items with no stripeImage
+  const vimeoThumbnails = useVimeoThumbnails(recentlyWatched);
 
   // Hero item logic: most recent watched OR first available content
   const heroItem = React.useMemo(() => {
@@ -126,24 +127,18 @@ const HomeScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <ImageBackground
-            source={BackgroundImage}
-            style={styles.headerBackground}
-            resizeMode="cover"
-          >
-            <View style={styles.backgroundOverlay} />
-            {renderHeader()}
-
-            <View style={styles.heroContainer}>
-              <HeroSection
-                title="Continue Watching"
-                subtitle={heroItem ? heroItem.title : 'Start Learning'}
-                progressText={heroItem?.category?.name || ''}
-                onContinuePress={() => heroItem && handlePlayContent(heroItem)}
-                withBackground={false}
-              />
-            </View>
-          </ImageBackground>
+          {/* Hero area — image/video fills full area, header overlays on top */}
+          <View style={styles.heroBannerContainer}>
+            <HeroSection
+              title="Continue Watching"
+              subtitle={heroItem ? heroItem.title : 'Start Learning'}
+              progressText={heroItem?.category?.name || ''}
+              videoUrl={heroItem?.contentLink}
+              onContinuePress={() => heroItem && handlePlayContent(heroItem)}
+            />
+            {/* Header overlaid on top of hero */}
+            <View style={styles.overlaidHeader}>{renderHeader()}</View>
+          </View>
 
           <View style={styles.contentSection}>
             <HorizontalRow
@@ -177,20 +172,23 @@ const HomeScreen: React.FC = () => {
                 title="Recently Watched"
                 data={recentlyWatched}
                 keyExtractor={(item: StudyContentItem) => item._id}
-                renderItem={({ item }: { item: StudyContentItem }) => (
-                  <ProgramCard
-                    title={item.title}
-                    progress={0}
-                    image={
-                      item.ranks && item.ranks[0]?.stripeImage
-                        ? { uri: item.ranks[0].stripeImage }
-                        : {
-                            uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-                          }
-                    }
-                    onPress={() => handlePlayContent(item)}
-                  />
-                )}
+                renderItem={({ item }: { item: StudyContentItem }) => {
+                  const entry = history.find(h => h.contentId === item._id);
+                  return (
+                    <ProgramCard
+                      title={item.title}
+                      progress={entry?.progressPercent ?? 0}
+                      previewUrl={item.contentLink}
+                      image={{
+                        uri:
+                          vimeoThumbnails[item._id] ||
+                          item.ranks?.[0]?.stripeImage ||
+                          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+                      }}
+                      onPress={() => handlePlayContent(item)}
+                    />
+                  );
+                }}
               />
             )}
           </View>
@@ -220,6 +218,16 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     marginBottom: rs(20),
+  },
+  heroBannerContainer: {
+    position: 'relative',
+  },
+  overlaidHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   contentSection: {
     paddingTop: rs(20),

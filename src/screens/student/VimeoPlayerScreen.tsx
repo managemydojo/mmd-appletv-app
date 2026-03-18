@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Text,
-  NativeModules,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StudentStackParamList } from '../../navigation';
 import { rs } from '../../theme/responsive';
-import BackIcon from '../../../assets/icons/back-icon.svg';
 import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
+import Video, { OnProgressData, OnLoadData } from 'react-native-video';
+import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
 
 type VimeoPlayerRouteProp = RouteProp<StudentStackParamList, 'VideoPlayer'>;
 type VimeoPlayerNavigationProp = NativeStackNavigationProp<
@@ -21,150 +21,104 @@ type VimeoPlayerNavigationProp = NativeStackNavigationProp<
 >;
 
 /**
- * Extract HLS .m3u8 URL from a Vimeo embed page HTML.
- */
-function extractHLSUrl(html: string): string | null {
-  const marker = 'window.playerConfig = ';
-  const idx = html.indexOf(marker);
-  if (idx === -1) return null;
-
-  const jsonStart = idx + marker.length;
-  const scriptEnd = html.indexOf('</script>', jsonStart);
-  if (scriptEnd === -1) return null;
-
-  try {
-    const config = JSON.parse(html.substring(jsonStart, scriptEnd));
-    const hls = config?.request?.files?.hls;
-    if (!hls) return null;
-
-    const defaultCdn = hls.default_cdn;
-    const cdnData = hls.cdns?.[defaultCdn];
-    if (!cdnData) return null;
-
-    const url = cdnData.avc_url || cdnData.url || '';
-    return url.replace(/\\u0026/g, '&');
-  } catch (e) {
-    console.warn('[VimeoPlayer] JSON parse error:', e);
-    return null;
-  }
-}
-
-/**
- * Video player screen that:
- * 1. Fetches the Vimeo embed page
- * 2. Extracts the HLS stream URL
- * 3. Calls the native VimeoPlayerModule to play with AVPlayerViewController
+ * Cross-platform video player screen using react-native-video.
+ * Works on both Apple TV (AVPlayer) and Android TV (ExoPlayer).
+ *
+ * Navigation: Press Menu (Apple TV remote) or Back (Android TV remote)
+ * to return to the previous screen.
  */
 const VimeoPlayerScreen: React.FC = () => {
   const navigation = useNavigation<VimeoPlayerNavigationProp>();
   const route = useRoute<VimeoPlayerRouteProp>();
   const { videoUrl, title, contentId } = route.params;
-  const { addToHistory } = useWatchHistoryStore();
+  const { addToHistory, updateProgress } = useWatchHistoryStore();
 
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const videoDuration = useRef<number>(0);
+  const lastProgress = useRef<number>(0);
 
-  const playVideo = async (url: string) => {
+  // Resolve the video URL using the shared utility
+  const loadVideo = useCallback(async (url: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Check if it's already a direct HLS or MP4 link
-      if (url.includes('.m3u8') || url.includes('.mp4')) {
-        setDebugInfo('Direct stream found, launching native player...');
-        const playerModule = NativeModules.VimeoPlayerModule;
-        if (playerModule && typeof playerModule.playHLS === 'function') {
-          playerModule.playHLS(url, title || '');
-          setTimeout(() => setIsLoading(false), 2000);
-        } else {
-          setError('Video player module not available');
-          setIsLoading(false);
-        }
-        return;
-      }
+      const resolved = await resolveVimeoUrl(url);
 
-      setDebugInfo('Fetching video page...');
-
-      // If it's a standard vimeo.com/12345 link, convert it to an embed URL to scrape the config
-      let fetchUrl = url;
-      const vimeoIdMatch = url.match(/(?:vimeo\.com\/|video\/)(\d+)/);
-      if (vimeoIdMatch && vimeoIdMatch[1]) {
-        fetchUrl = `https://player.vimeo.com/video/${vimeoIdMatch[1]}`;
-      }
-
-      // Step 1: Fetch the Vimeo embed HTML
-      const response = await fetch(fetchUrl);
-      const html = await response.text();
-      setDebugInfo('Parsing video config...');
-
-      // Step 2: Extract HLS URL from playerConfig
-      const hlsUrl = extractHLSUrl(html);
-      if (!hlsUrl) {
+      if (!resolved) {
         setError('Could not extract video stream URL');
-        setDebugInfo('HLS extraction failed');
         setIsLoading(false);
         return;
       }
 
-      setDebugInfo('Launching native player...');
-
-      // Step 3: Call native module to play the direct HLS URL
-      const playerModule = NativeModules.VimeoPlayerModule;
-      if (playerModule && typeof playerModule.playHLS === 'function') {
-        playerModule.playHLS(hlsUrl, title || '');
-        setTimeout(() => setIsLoading(false), 2000);
-      } else {
-        // Debug: show available modules
-        const moduleNames = Object.keys(NativeModules).sort();
-        setDebugInfo(`Module not found. Available: ${moduleNames.join(', ')}`);
-        setError('Video player module not available');
-        setIsLoading(false);
-      }
-    } catch (e: any) {
-      setError(e.message || 'Failed to load video');
-      setDebugInfo(`Error: ${e.message}`);
+      setResolvedUrl(resolved);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to load video';
+      setError(message);
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
+    // Add to watch history
     if (contentId) {
       addToHistory({ contentId, title: title || 'Unknown Video' });
     }
 
-    const fetchVimeoHLS = async () => {
-      if (isMounted) {
-        playVideo(videoUrl);
+    loadVideo(videoUrl);
+
+    // Save progress when leaving the screen
+    return () => {
+      if (contentId && videoDuration.current > 0) {
+        const percent = Math.round(
+          (lastProgress.current / videoDuration.current) * 100,
+        );
+        updateProgress(contentId, Math.min(percent, 100));
       }
     };
-    fetchVimeoHLS();
+  }, [videoUrl, contentId, title, addToHistory, updateProgress, loadVideo]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [videoUrl, contentId, title, addToHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+  const handleLoad = (data: OnLoadData) => {
+    videoDuration.current = data.duration;
+    setIsLoading(false);
+  };
 
-  const handleBackPress = () => {
+  const handleProgress = (data: OnProgressData) => {
+    lastProgress.current = data.currentTime;
+  };
+
+  const handleError = () => {
+    setError('Video playback failed. The stream may be unavailable.');
+    setIsLoading(false);
+  };
+
+  const handleEnd = () => {
+    // Mark as 100% watched
+    if (contentId) {
+      updateProgress(contentId, 100);
+    }
     navigation.goBack();
   };
 
+  // ── Error state ──
   if (error) {
     return (
       <View style={styles.container}>
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
-          <Text style={styles.debugText}>{debugInfo}</Text>
           <TouchableOpacity
-            onPress={() => playVideo(videoUrl)}
+            onPress={() => loadVideo(videoUrl)}
             style={styles.retryBtn}
             hasTVPreferredFocus={true}
           >
             <Text style={styles.retryBtnText}>Retry</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+          >
             <Text style={styles.backBtnText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -172,35 +126,34 @@ const VimeoPlayerScreen: React.FC = () => {
     );
   }
 
+  // ── Loading + Video ──
   return (
     <View style={styles.container}>
-      {isLoading ? (
-        <View style={styles.centerContent}>
+      {/* Loading indicator (shown until onLoad fires) */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text style={styles.loadingTitle}>
             {title ? `Loading ${title}...` : 'Loading video...'}
           </Text>
-          <Text style={styles.debugText}>{debugInfo}</Text>
         </View>
-      ) : (
-        <View style={styles.centerContent}>
-          <Text style={styles.infoText}>
-            Video player is open. Press Menu on the remote to return.
-          </Text>
-          <TouchableOpacity
-            onPress={() => playVideo(videoUrl)}
-            style={styles.retryBtn}
-            hasTVPreferredFocus={true}
-          >
-            <Text style={styles.retryBtnText}>Play Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backBtn}>
-            <View style={styles.backBtnInner}>
-              <BackIcon width={rs(24)} height={rs(24)} fill="white" />
-              <Text style={styles.backBtnText}>Back to Program</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+      )}
+
+      {/* react-native-video — native controls, back via remote Menu/Back button */}
+      {resolvedUrl && (
+        <Video
+          source={{ uri: resolvedUrl }}
+          style={styles.video}
+          controls={true}
+          fullscreen={true}
+          resizeMode="contain"
+          onLoad={handleLoad}
+          onProgress={handleProgress}
+          onError={handleError}
+          onEnd={handleEnd}
+          progressUpdateInterval={5000}
+          ignoreSilentSwitch="ignore"
+        />
       )}
     </View>
   );
@@ -211,32 +164,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  video: {
+    ...StyleSheet.absoluteFillObject,
+  },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingTitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: rs(24),
-    marginTop: rs(16),
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    zIndex: 10,
   },
-  infoText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: rs(22),
-    marginBottom: rs(32),
+  loadingTitle: {
+    color: 'white',
+    fontSize: rs(24),
+    marginTop: rs(20),
+    opacity: 0.8,
   },
   errorText: {
     color: '#EF4444',
-    fontSize: rs(28),
-    fontWeight: 'bold',
-    marginBottom: rs(12),
-  },
-  debugText: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: rs(16),
-    marginTop: rs(8),
-    marginBottom: rs(16),
+    fontSize: rs(24),
+    marginBottom: rs(20),
     textAlign: 'center',
     paddingHorizontal: rs(40),
   },
@@ -259,14 +211,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  backBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   backBtnText: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: rs(22),
-    marginLeft: rs(12),
   },
 });
 

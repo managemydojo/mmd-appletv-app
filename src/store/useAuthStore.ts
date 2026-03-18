@@ -56,13 +56,19 @@ export const useAuthStore = create<AuthStore>(set => ({
       // Check if we have a valid response with data
       if (response && response.data) {
         // Handle potentially different token structures (matching kiosk logic)
+        interface LoginResponseData {
+          accessToken?: string;
+          refreshToken?: string;
+          token?: string;
+          user?: Record<string, string>;
+          _id?: string;
+          email?: string;
+          firstName?: string;
+        }
 
-        const responseAny = response as any;
-        const token =
-          response.data.accessToken ||
-          responseAny.data?.token ||
-          responseAny.token;
-        const refreshToken = response.data.refreshToken;
+        const responseData = response.data as unknown as LoginResponseData;
+        const token = responseData.accessToken || responseData.token;
+        const refreshToken = responseData.refreshToken;
         const userData = response.data;
 
         // Store tokens securely
@@ -75,7 +81,7 @@ export const useAuthStore = create<AuthStore>(set => ({
           await secureStorage.setToken(cleanToken);
           // Update local reference for the set() call below
           set({
-            user: { ...userData, accessToken: cleanToken } as any,
+            user: { ...userData, accessToken: cleanToken } as CurrentUser,
             token: cleanToken,
             isAuthenticated: true,
             isLoading: false,
@@ -89,11 +95,13 @@ export const useAuthStore = create<AuthStore>(set => ({
         }
 
         // Store minimal user data
-        const userInfo = userData.user || userData;
+        const userInfo: Record<string, string> =
+          (responseData.user as Record<string, string>) ||
+          (responseData as Record<string, string>);
         const essentialUserData = {
-          _id: (userInfo as any)._id || '',
-          email: (userInfo as any).email || '',
-          firstName: (userInfo as any).firstName || '',
+          _id: userInfo._id || '',
+          email: userInfo.email || '',
+          firstName: userInfo.firstName || '',
         };
         await secureStorage.setUserData(JSON.stringify(essentialUserData));
       } else {

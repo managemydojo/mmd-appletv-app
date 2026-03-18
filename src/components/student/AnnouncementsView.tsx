@@ -13,6 +13,7 @@ import BackIcon from '../../../assets/icons/back-icon.svg';
 import { useAnnouncementStore } from '../../store/useAnnouncementStore';
 import { format, parseISO, isValid } from 'date-fns';
 import { Announcement } from '../../types/announcement';
+import { stripHtml } from '../../utils/stripHtml';
 
 interface AnnouncementsViewProps {}
 
@@ -75,7 +76,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = () => {
           <Text style={styles.label}>Message</Text>
           <View style={styles.valueContainer}>
             <Text style={styles.valueText}>
-              {selectedAnnouncement.description}
+              {stripHtml(selectedAnnouncement.description)}
             </Text>
           </View>
 
@@ -130,8 +131,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = () => {
           style={[styles.description, isFocused && styles.textFocused]}
           numberOfLines={2}
         >
-          {/* Stripping potential HTML from description if necessary, though simple text is assumed */}
-          {item.description?.replace(/<[^>]*>?/gm, '')}
+          {stripHtml(item.description)}
         </Text>
       </TouchableOpacity>
     );

@@ -18,7 +18,14 @@ import { LessonCard } from '../../components/student/LessonCard';
 import BackIcon from '../../../assets/icons/back-icon.svg';
 import PlayButton from '../../../assets/icons/play_button.svg';
 import { useStudyStore } from '../../store/useStudyStore';
+import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
 import { StudyContentItem, StudySubCategory } from '../../types/study';
+import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
+import Video from 'react-native-video';
+import {
+  resolveVimeoUrl,
+  fetchVimeoThumbnail,
+} from '../../utils/resolveVimeoUrl';
 
 type ProgramDetailRouteProp = RouteProp<StudentStackParamList, 'ProgramDetail'>;
 type ProgramDetailNavigationProp = NativeStackNavigationProp<
@@ -40,10 +47,66 @@ const ProgramDetailScreen: React.FC = () => {
     subCategories,
     clearError,
   } = useStudyStore();
+  const { history, loadHistory } = useWatchHistoryStore();
   const [programContent, setProgramContent] = React.useState<
     StudyContentItem[]
   >([]);
+  const vimeoThumbnails = useVimeoThumbnails(programContent);
   const [loading, setLoading] = React.useState(true);
+
+  // Hero preview state
+  const [heroThumb, setHeroThumb] = React.useState<string | null>(null);
+  const [heroResolvedUrl, setHeroResolvedUrl] = React.useState<string | null>(
+    null,
+  );
+  const [showHeroPreview, setShowHeroPreview] = React.useState(false);
+  const [heroFocused, setHeroFocused] = React.useState(false);
+  const heroPreviewTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const heroIsMounted = React.useRef(true);
+
+  React.useEffect(() => {
+    heroIsMounted.current = true;
+    return () => {
+      heroIsMounted.current = false;
+    };
+  }, []);
+
+  // Fetch hero thumbnail when first content item changes
+  const heroContentLink = programContent[0]?.contentLink;
+  React.useEffect(() => {
+    if (!heroContentLink) return;
+    fetchVimeoThumbnail(heroContentLink).then(thumb => {
+      if (thumb && heroIsMounted.current) setHeroThumb(thumb);
+    });
+  }, [heroContentLink]);
+
+  const handleHeroFocus = React.useCallback(() => {
+    setHeroFocused(true);
+    if (!heroContentLink) return;
+    heroPreviewTimer.current = setTimeout(async () => {
+      let url = heroResolvedUrl;
+      if (!url) {
+        url = await resolveVimeoUrl(heroContentLink);
+        if (url && heroIsMounted.current) setHeroResolvedUrl(url);
+      }
+      if (url && heroIsMounted.current) setShowHeroPreview(true);
+    }, 600);
+  }, [heroContentLink, heroResolvedUrl]);
+
+  const handleHeroBlur = React.useCallback(() => {
+    setHeroFocused(false);
+    if (heroPreviewTimer.current) {
+      clearTimeout(heroPreviewTimer.current);
+      heroPreviewTimer.current = null;
+    }
+    setShowHeroPreview(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // Default to the first program if viewing a category
   const [selectedProgramId, setSelectedProgramId] = React.useState<
@@ -242,16 +305,14 @@ const ProgramDetailScreen: React.FC = () => {
   // Hero Title: use the first video's title if available, otherwise fallback to the category/program name
   const heroTitle = programContent[0]?.title || displayName;
 
-  // Hero image: first item's stripe image, category image, or fallback
-  const heroImage =
-    programContent[0]?.ranks?.[0]?.stripeImage || categoryImage
-      ? {
-          uri: (programContent[0]?.ranks?.[0]?.stripeImage ||
-            categoryImage) as string,
-        }
-      : {
-          uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-        };
+  // Hero image: Vimeo thumbnail > first item's stripe image > category image > fallback
+  const heroImageUri =
+    heroThumb ||
+    programContent[0]?.ranks?.[0]?.stripeImage ||
+    categoryImage ||
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+  const heroImage = { uri: heroImageUri };
 
   const handlePlayPress = (item?: StudyContentItem) => {
     const targetItem = item || programContent[0];
@@ -302,20 +363,26 @@ const ProgramDetailScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.lessonRow}
       >
-        {tier.lessons.map(lesson => (
-          <LessonCard
-            key={lesson._id}
-            title={lesson.title}
-            image={{
-              uri:
-                lesson.ranks?.[0]?.stripeImage ||
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-            }}
-            locked={tier.locked}
-            lockMessage=""
-            onPress={tier.locked ? undefined : () => handlePlayPress(lesson)}
-          />
-        ))}
+        {tier.lessons.map(lesson => {
+          const entry = history.find(h => h.contentId === lesson._id);
+          return (
+            <LessonCard
+              key={lesson._id}
+              title={lesson.title}
+              image={{
+                uri:
+                  vimeoThumbnails[lesson._id] ||
+                  lesson.ranks?.[0]?.stripeImage ||
+                  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+              }}
+              locked={tier.locked}
+              lockMessage=""
+              progress={entry?.progressPercent ?? 0}
+              previewUrl={lesson.contentLink}
+              onPress={tier.locked ? undefined : () => handlePlayPress(lesson)}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -327,20 +394,26 @@ const ProgramDetailScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.lessonRow}
       >
-        {programContent.map(lesson => (
-          <LessonCard
-            key={lesson._id}
-            title={lesson.title}
-            image={{
-              uri:
-                lesson.ranks?.[0]?.stripeImage ||
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-            }}
-            locked={false}
-            lockMessage=""
-            onPress={() => handlePlayPress(lesson)}
-          />
-        ))}
+        {programContent.map(lesson => {
+          const entry = history.find(h => h.contentId === lesson._id);
+          return (
+            <LessonCard
+              key={lesson._id}
+              title={lesson.title}
+              image={{
+                uri:
+                  vimeoThumbnails[lesson._id] ||
+                  lesson.ranks?.[0]?.stripeImage ||
+                  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+              }}
+              locked={false}
+              lockMessage=""
+              progress={entry?.progressPercent ?? 0}
+              previewUrl={lesson.contentLink}
+              onPress={() => handlePlayPress(lesson)}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -395,6 +468,18 @@ const ProgramDetailScreen: React.FC = () => {
             imageStyle={styles.heroImageStyle}
             resizeMode="cover"
           >
+            {/* Preview video overlay */}
+            {showHeroPreview && heroResolvedUrl && (
+              <Video
+                source={{ uri: heroResolvedUrl }}
+                style={StyleSheet.absoluteFillObject}
+                muted={false}
+                repeat={true}
+                resizeMode="cover"
+                controls={false}
+              />
+            )}
+
             <View style={styles.heroOverlay}>
               {/* Back Button */}
               <TouchableOpacity
@@ -405,12 +490,19 @@ const ProgramDetailScreen: React.FC = () => {
                 <BackIcon width={rs(28)} height={rs(28)} fill="white" />
               </TouchableOpacity>
 
-              {/* Center Play Button */}
+              {/* Center Play Button — focusable, triggers preview */}
               <TouchableOpacity
                 onPress={() => handlePlayPress()}
-                style={styles.centerPlay}
+                style={[
+                  styles.centerPlay,
+                  heroFocused && styles.centerPlayFocused,
+                ]}
+                onFocus={handleHeroFocus}
+                onBlur={handleHeroBlur}
               >
-                <PlayButton width={rs(72)} height={rs(72)} />
+                {!showHeroPreview && (
+                  <PlayButton width={rs(72)} height={rs(72)} />
+                )}
               </TouchableOpacity>
 
               {/* Title */}
@@ -540,6 +632,10 @@ const styles = StyleSheet.create({
     left: '50%',
     marginTop: rs(-36),
     marginLeft: rs(-36),
+    padding: rs(12),
+  },
+  centerPlayFocused: {
+    transform: [{ scale: 1.15 }],
   },
   categoryLabel: {
     color: 'white',

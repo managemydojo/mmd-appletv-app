@@ -93,7 +93,17 @@ android {
             keyPassword 'android'
         }
         release {
-            if (project.hasProperty('MMD_RELEASE_STORE_FILE')) {
+            // Load signing credentials from git-ignored signing.properties
+            def signingPropsFile = rootProject.file("signing.properties")
+            if (signingPropsFile.exists()) {
+                def signingProps = new Properties()
+                signingProps.load(new FileInputStream(signingPropsFile))
+                storeFile file(signingProps['MMD_RELEASE_STORE_FILE'])
+                storePassword signingProps['MMD_RELEASE_STORE_PASSWORD']
+                keyAlias signingProps['MMD_RELEASE_KEY_ALIAS']
+                keyPassword signingProps['MMD_RELEASE_KEY_PASSWORD']
+            } else if (project.hasProperty('MMD_RELEASE_STORE_FILE')) {
+                // Fallback: allow passing via -P flags (e.g. CI/CD)
                 storeFile file(MMD_RELEASE_STORE_FILE)
                 storePassword MMD_RELEASE_STORE_PASSWORD
                 keyAlias MMD_RELEASE_KEY_ALIAS

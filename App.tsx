@@ -6,6 +6,7 @@ import { queryClient } from './src/services/api';
 import { ThemeContext, darkTheme } from './src/theme';
 import { RootNavigator } from './src/navigation';
 import { LogBox } from 'react-native';
+import { ErrorBoundary } from './src/components/ui/ErrorBoundary';
 
 if (!__DEV__) {
   LogBox.ignoreAllLogs(true);
@@ -13,16 +14,18 @@ if (!__DEV__) {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ThemeContext.Provider value={{ theme: darkTheme }}>
-        <QueryClientProvider client={queryClient}>
-          <StatusBar barStyle="light-content" />
-          <View style={styles.container}>
-            <RootNavigator />
-          </View>
-        </QueryClientProvider>
-      </ThemeContext.Provider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeContext.Provider value={{ theme: darkTheme }}>
+          <QueryClientProvider client={queryClient}>
+            <StatusBar barStyle="light-content" />
+            <View style={styles.container}>
+              <RootNavigator />
+            </View>
+          </QueryClientProvider>
+        </ThemeContext.Provider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

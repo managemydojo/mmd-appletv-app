@@ -24,6 +24,7 @@ import SearchIcon from '../../../assets/icons/search-icon.svg';
 // Services
 import { studyService } from '../../services/studyService';
 import { StudyContentItem } from '../../types/study';
+import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<
   StudentStackParamList,
@@ -45,6 +46,7 @@ const SearchScreen = () => {
   const [allData, setAllData] = useState<StudyContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const vimeoThumbnails = useVimeoThumbnails(allData);
 
   const { control, handleSubmit } = useForm<SearchFormData>({
     defaultValues: {
@@ -193,13 +195,13 @@ const SearchScreen = () => {
                     <ProgramCard
                       title={item.title}
                       progress={0}
-                      image={
-                        item.ranks && item.ranks[0]?.stripeImage
-                          ? { uri: item.ranks[0].stripeImage }
-                          : {
-                              uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-                            }
-                      }
+                      image={{
+                        uri:
+                          vimeoThumbnails[item._id] ||
+                          (item.ranks && item.ranks[0]?.stripeImage) ||
+                          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+                      }}
+                      previewUrl={item.contentLink}
                       onPress={() => handlePlayContent(item)}
                       style={styles.cardOverride}
                     />

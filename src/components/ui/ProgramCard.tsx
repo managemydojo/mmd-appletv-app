@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,16 @@ import { useTheme } from '../../theme';
 import { FocusableCard } from './FocusableCard';
 import { rs } from '../../theme/responsive';
 import PlayButton from '../../../assets/icons/play_button.svg';
+import Video from 'react-native-video';
+import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
 
 interface ProgramCardProps {
   title: string;
   image?: ImageSourcePropType | string;
   progress?: number;
   showPlayButton?: boolean;
+  /** URL for hover-to-play preview (auto-plays on focus) */
+  previewUrl?: string;
   variant?: 'default' | 'text-only';
   onPress: () => void;
   width?: number;
@@ -25,19 +29,58 @@ interface ProgramCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
+/** Debounce delay before starting a preview */
+const PREVIEW_DELAY_MS = 600;
+
 export const ProgramCard: React.FC<ProgramCardProps> = ({
   title,
   image,
   progress = 0,
   showPlayButton = true,
+  previewUrl,
   variant = 'default',
   onPress,
-  width = rs(380), // Approx w-96
-  height = rs(240), // Approx h-64
+  width = rs(380),
+  height = rs(240),
   style,
 }) => {
   const { theme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(
+    null,
+  );
+  const [showPreview, setShowPreview] = useState(false);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMounted = useRef(true);
+
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+    if (previewUrl && variant !== 'text-only') {
+      previewTimer.current = setTimeout(async () => {
+        const resolved = await resolveVimeoUrl(previewUrl);
+        if (resolved && isMounted.current) {
+          setResolvedPreviewUrl(resolved);
+          setShowPreview(true);
+        }
+      }, PREVIEW_DELAY_MS);
+    }
+  }, [previewUrl, variant]);
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false);
+    if (previewTimer.current) {
+      clearTimeout(previewTimer.current);
+      previewTimer.current = null;
+    }
+    setShowPreview(false);
+  }, []);
 
   // Resolve image source
   const imageSource =
@@ -52,8 +95,8 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
   return (
     <FocusableCard
       onPress={onPress}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       style={[
         styles.container,
         {
@@ -73,7 +116,7 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
           styles.cardContent,
           {
             borderRadius: rs(10),
-            borderWidth: isFocused ? rs(4) : 0, // Border only on focus
+            borderWidth: isFocused ? rs(4) : 0,
             borderColor: isFocused ? theme.colors.primary : 'transparent',
             backgroundColor: variant === 'text-only' ? '#1A1D24' : 'black',
           },
@@ -98,6 +141,18 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
               resizeMode="cover"
             />
 
+            {/* Hover-to-play preview — resolved HLS video on focus */}
+            {showPreview && resolvedPreviewUrl && (
+              <Video
+                source={{ uri: resolvedPreviewUrl }}
+                style={[StyleSheet.absoluteFill, { borderRadius: rs(8) }]}
+                muted={false}
+                repeat={true}
+                resizeMode="cover"
+                controls={false}
+              />
+            )}
+
             {/* Overlay Layer */}
             <View
               style={[
@@ -109,11 +164,14 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
                 },
               ]}
             >
-              {/* Center Icon */}
-              {showPlayButton && (
+              {/* Center Icon — hidden during preview */}
+              {showPlayButton && !showPreview && (
                 <View style={styles.centerIcon}>
                   <PlayButton width={rs(64)} height={rs(64)} />
                 </View>
+              )}
+              {(showPreview || !showPlayButton) && (
+                <View style={styles.centerIcon} />
               )}
 
               {/* Bottom Info */}
@@ -155,10 +213,6 @@ const styles = StyleSheet.create({
     marginRight: rs(24),
     overflow: 'hidden',
   },
-  imageBackground: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
   overlay: {
     flex: 1,
     justifyContent: 'space-between',
@@ -168,16 +222,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  playIconCircle: {
-    width: rs(64),
-    height: rs(64),
-    borderRadius: rs(32),
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: rs(2),
-    borderColor: '#3B82F6', // Blue-500
   },
   footer: {
     width: '100%',
@@ -214,8 +258,8 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    overflow: 'hidden', // Strictly clip content/image
-    backgroundColor: 'black', // fallback
+    overflow: 'hidden',
+    backgroundColor: 'black',
   },
   textOnlyContainer: {
     flex: 1,
