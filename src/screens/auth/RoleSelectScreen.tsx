@@ -83,12 +83,11 @@ export default function RoleSelectScreen({ navigation }: Props) {
             Icon={StudentIcon}
             onPress={() => handleRoleSelect('student')}
           />
-          {/* Dojo Cast — disabled (Coming Soon) */}
+          {/* Dojo Cast — enabled */}
           <RoleCard
             title="Dojo Cast"
             Icon={DojoIcon}
             onPress={() => handleRoleSelect('dojo')}
-            disabled
           />
           {/* Admin — disabled (Coming Soon) */}
           <RoleCard

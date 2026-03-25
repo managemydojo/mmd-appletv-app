@@ -17,30 +17,37 @@ import ProgramDetailScreen from '../screens/student/ProgramDetailScreen';
 import VimeoPlayerScreen from '../screens/student/VimeoPlayerScreen';
 
 // Dojo Screens
-import DojoHomeScreen from '../screens/dojo/DojoHomeScreen';
+import DojoCastConnectScreen from '../screens/dojo/DojoCastConnectScreen';
+import DojoCastSetupScreen from '../screens/dojo/DojoCastSetupScreen';
+import DojoCastSlideshowScreen from '../screens/dojo/DojoCastSlideshowScreen';
+import DojoCastErrorScreen from '../screens/dojo/DojoCastErrorScreen';
 
 // Admin Screens
 import AdminHomeScreen from '../screens/admin/AdminHomeScreen';
 
 export type AuthStackParamList = {
-    RoleSelect: undefined;
-    Login: undefined;
-    ForgotPassword: undefined;
+  RoleSelect: undefined;
+  Login: undefined;
+  ForgotPassword: undefined;
 };
 
 export type StudentStackParamList = {
-    Home: undefined;
-    Search: undefined;
-    ProgramDetail: { id: string; type: 'program' | 'category' };
-    VideoPlayer: { videoUrl: string; title?: string; contentId?: string };
+  Home: undefined;
+  Search: undefined;
+  ProgramDetail: { id: string; type: 'program' | 'category' };
+  VideoPlayer: { videoUrl: string; title?: string; contentId?: string };
 };
 
 export type DojoStackParamList = {
-    Home: undefined;
+  Home: undefined;
+  Connect: undefined;
+  Setup: undefined;
+  Slideshow: undefined;
+  Error: undefined;
 };
 
 export type AdminStackParamList = {
-    Home: undefined;
+  Home: undefined;
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -49,95 +56,116 @@ const DojoStack = createNativeStackNavigator<DojoStackParamList>();
 const AdminStack = createNativeStackNavigator<AdminStackParamList>();
 
 const AuthNavigator = () => {
-    const { theme } = useTheme();
-    return (
-        <AuthStack.Navigator
-            screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-                animation: 'fade', // Smooth fade for TV
-            }}
-        >
-            <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
-            <AuthStack.Screen name="Login" component={LoginScreen} />
-            <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        </AuthStack.Navigator>
-    );
+  const { theme } = useTheme();
+  return (
+    <AuthStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+        animation: 'fade', // Smooth fade for TV
+      }}
+    >
+      <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+      />
+    </AuthStack.Navigator>
+  );
 };
 
 const StudentNavigator = () => {
-    const { theme } = useTheme();
-    return (
-        <StudentStack.Navigator
-            screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-                animation: 'fade',
-            }}
-        >
-            <StudentStack.Screen name="Home" component={StudentHomeScreen} />
-            <StudentStack.Screen name="Search" component={SearchScreen} />
-            <StudentStack.Screen name="ProgramDetail" component={ProgramDetailScreen} />
-            <StudentStack.Screen name="VideoPlayer" component={VimeoPlayerScreen} />
-        </StudentStack.Navigator>
-    );
+  const { theme } = useTheme();
+  return (
+    <StudentStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+        animation: 'fade',
+      }}
+    >
+      <StudentStack.Screen name="Home" component={StudentHomeScreen} />
+      <StudentStack.Screen name="Search" component={SearchScreen} />
+      <StudentStack.Screen
+        name="ProgramDetail"
+        component={ProgramDetailScreen}
+      />
+      <StudentStack.Screen name="VideoPlayer" component={VimeoPlayerScreen} />
+    </StudentStack.Navigator>
+  );
 };
 
 const DojoNavigator = () => {
-    const { theme } = useTheme();
-    return (
-        <DojoStack.Navigator
-            screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-                animation: 'fade',
-            }}
-        >
-            <DojoStack.Screen name="Home" component={DojoHomeScreen} />
-        </DojoStack.Navigator>
-    );
+  const { theme } = useTheme();
+  return (
+    <DojoStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+        animation: 'fade',
+      }}
+    >
+      <DojoStack.Screen name="Connect" component={DojoCastConnectScreen} />
+      <DojoStack.Screen name="Setup" component={DojoCastSetupScreen} />
+      <DojoStack.Screen name="Slideshow" component={DojoCastSlideshowScreen} />
+      <DojoStack.Screen name="Error" component={DojoCastErrorScreen} />
+    </DojoStack.Navigator>
+  );
 };
 
 const AdminNavigator = () => {
-    const { theme } = useTheme();
-    return (
-        <AdminStack.Navigator
-            screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-                animation: 'fade',
-            }}
-        >
-            <AdminStack.Screen name="Home" component={AdminHomeScreen} />
-        </AdminStack.Navigator>
-    );
+  const { theme } = useTheme();
+  return (
+    <AdminStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+        animation: 'fade',
+      }}
+    >
+      <AdminStack.Screen name="Home" component={AdminHomeScreen} />
+    </AdminStack.Navigator>
+  );
 };
 
 export const RootNavigator = () => {
-    const { isAuthenticated, isInitialized, loadStoredAuth, selectedRole } = useAuthStore();
-    const { theme } = useTheme();
+  const { isAuthenticated, isInitialized, loadStoredAuth, selectedRole } =
+    useAuthStore();
+  const { theme } = useTheme();
 
-    useEffect(() => {
-        loadStoredAuth();
-    }, [loadStoredAuth]);
+  useEffect(() => {
+    loadStoredAuth();
+  }, [loadStoredAuth]);
 
-    if (!isInitialized) {
-        return (
-            <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-        );
-    }
-
+  if (!isInitialized) {
     return (
-        <NavigationContainer>
-            {isAuthenticated ? (
-                selectedRole === 'dojo' ? <DojoNavigator /> :
-                    selectedRole === 'admin' ? <AdminNavigator /> :
-                        <StudentNavigator />
-            ) : (
-                <AuthNavigator />
-            )}
-        </NavigationContainer>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.colors.background,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
     );
+  }
+
+  return (
+    <NavigationContainer>
+      {isAuthenticated ? (
+        selectedRole === 'dojo' ? (
+          <DojoNavigator />
+        ) : selectedRole === 'admin' ? (
+          <AdminNavigator />
+        ) : (
+          <StudentNavigator />
+        )
+      ) : (
+        <AuthNavigator />
+      )}
+    </NavigationContainer>
+  );
 };
