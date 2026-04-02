@@ -7,6 +7,9 @@ import { rs, wp } from '../../theme/responsive';
 import { FocusableCard } from '../../components/ui/FocusableCard';
 import { useDojoCastStore } from '../../store/useDojoCastStore';
 import { DojoStackParamList } from '../../navigation';
+import { useExitConfirmation } from '../../hooks/useExitConfirmation';
+import { useDojoCastSlides } from '../../hooks/useDojoCastSlides';
+import FileIcon from '../../../assets/icons/file.svg';
 
 type Nav = NativeStackNavigationProp<DojoStackParamList, 'Connect'>;
 
@@ -14,6 +17,11 @@ const DojoCastConnectScreen = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<Nav>();
   const setConnectionStatus = useDojoCastStore(s => s.setConnectionStatus);
+  const { data: slidesResponse, isLoading } = useDojoCastSlides();
+
+  const slides = slidesResponse?.data?.items ?? [];
+
+  useExitConfirmation();
 
   const handleSelectSlides = () => {
     setConnectionStatus('connected');
@@ -40,6 +48,20 @@ const DojoCastConnectScreen = () => {
         You can change or manage the connected presentation at any time
       </Text>
 
+      {/* Loading indicator */}
+      {isLoading && (
+        <Text style={[styles.description, { marginTop: rs(16) }]}>
+          Loading slides...
+        </Text>
+      )}
+
+      {/* Available slides count */}
+      {slides.length > 0 && (
+        <Text style={[styles.description, { marginTop: rs(16) }]}>
+          {slides.length} presentation{slides.length !== 1 ? 's' : ''} available
+        </Text>
+      )}
+
       {/* Select Google Slides Button */}
       <FocusableCard
         onPress={handleSelectSlides}
@@ -50,7 +72,7 @@ const DojoCastConnectScreen = () => {
       >
         {() => (
           <View style={styles.selectButtonInner}>
-            <Text style={styles.slidesIcon}>{'📄'}</Text>
+            <FileIcon width={rs(28)} height={rs(28)} />
             <Text style={styles.selectButtonText}>Select Google Slides</Text>
           </View>
         )}
@@ -104,8 +126,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: rs(12),
   },
-  slidesIcon: {
-    fontSize: rs(28),
+  slidesIconContainer: {
+    width: rs(28),
+    height: rs(28),
   },
   selectButtonText: {
     fontSize: rs(28),
