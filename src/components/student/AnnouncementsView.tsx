@@ -4,163 +4,87 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
-import BackIcon from '../../../assets/icons/back-icon.svg';
+import { FocusableCard } from '../ui/FocusableCard';
 import { useAnnouncementStore } from '../../store/useAnnouncementStore';
 import { format, parseISO, isValid } from 'date-fns';
 import { Announcement } from '../../types/announcement';
 import { stripHtml } from '../../utils/stripHtml';
+import { StudentStackParamList } from '../../navigation';
 
-interface AnnouncementsViewProps {}
+type Nav = NativeStackNavigationProp<StudentStackParamList, 'Announcements'>;
 
 const safeFormatDate = (dateString?: string, formatStr: string = 'MMM d') => {
   if (!dateString) return '';
   try {
     const parsed = parseISO(dateString);
-    if (isValid(parsed)) {
-      return format(parsed, formatStr);
-    }
-    return '';
+    if (isValid(parsed)) return format(parsed, formatStr);
+    const fallback = new Date(dateString);
+    if (isValid(fallback)) return format(fallback, formatStr);
+    return dateString;
   } catch {
-    return '';
+    return dateString || '';
   }
 };
 
-export const AnnouncementsView: React.FC<AnnouncementsViewProps> = () => {
+export const AnnouncementsView: React.FC = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation<Nav>();
   const { announcements, loading, fetchAnnouncements } = useAnnouncementStore();
-
-  const [selectedAnnouncement, setSelectedAnnouncement] =
-    React.useState<Announcement | null>(null);
 
   useEffect(() => {
     fetchAnnouncements();
   }, [fetchAnnouncements]);
 
-  const handleBackPress = () => {
-    setSelectedAnnouncement(null);
+  const handleSelect = (item: Announcement) => {
+    navigation.navigate('AnnouncementDetail', {
+      title: item.title,
+      description: item.description,
+      createdAt: item.createdAt,
+    });
   };
 
-  const renderDetailView = () => {
-    if (!selectedAnnouncement) return null;
-
-    return (
-      <View style={styles.detailContainer}>
-        {/* ListHeaderComponent removed as per request */}
-
-        <View style={styles.detailHeaderContainer}>
-          <TouchableOpacity
-            onPress={handleBackPress}
-            style={styles.backButtonIcon}
-            hasTVPreferredFocus={true}
+  const AnnouncementItem = ({ item }: { item: Announcement }) => (
+    <FocusableCard
+      onPress={() => handleSelect(item)}
+      style={styles.card}
+      focusedStyle={styles.cardFocused}
+      wrapperStyle={styles.cardWrapper}
+      scaleOnFocus={false}
+    >
+      {({ focused }) => (
+        <>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.title, focused && styles.textFocused]}>
+              {item.title}
+            </Text>
+            <Text style={[styles.date, focused && styles.textFocused]}>
+              {safeFormatDate(item.createdAt, 'MMM d')}
+            </Text>
+          </View>
+          <Text
+            style={[styles.description, focused && styles.textFocused]}
+            numberOfLines={2}
           >
-            <BackIcon width={rs(30)} height={rs(30)} fill="white" />
-          </TouchableOpacity>
-          <Text style={styles.detailHeaderTitle}>Announcements</Text>
-          {/* Placeholder to balance the header */}
-          <View style={{ width: rs(50) }} />
-        </View>
-
-        <View style={styles.detailContent}>
-          {/* Title Section */}
-          <Text style={styles.label}>Announcement Title</Text>
-          <View style={styles.valueContainer}>
-            <Text style={styles.valueText}>{selectedAnnouncement.title}</Text>
-          </View>
-
-          {/* Message Section */}
-          <Text style={styles.label}>Message</Text>
-          <View style={styles.valueContainer}>
-            <Text style={styles.valueText}>
-              {stripHtml(selectedAnnouncement.description)}
-            </Text>
-          </View>
-
-          {/* Date Section */}
-          <Text style={styles.label}>Date</Text>
-          <View style={[styles.valueContainer, styles.dateContainer]}>
-            <Text style={styles.valueText}>
-              {safeFormatDate(selectedAnnouncement.createdAt, 'MMM d, yyyy')}
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  const AnnouncementItem = ({
-    item,
-    theme,
-    onSelect,
-  }: {
-    item: Announcement;
-    theme: any;
-    onSelect: (item: Announcement) => void;
-  }) => {
-    const [isFocused, setIsFocused] = React.useState(false);
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          isFocused && styles.cardFocused,
-          {
-            borderColor: isFocused
-              ? theme?.colors?.primary || '#3b82f6'
-              : 'rgba(59, 130, 246, 0.3)',
-          },
-        ]}
-        onPress={() => onSelect(item)}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.title, isFocused && styles.textFocused]}>
-            {item.title}
+            {stripHtml(item.description)}
           </Text>
-          <Text style={[styles.date, isFocused && styles.textFocused]}>
-            {safeFormatDate(item.createdAt, 'MMM d')}
-          </Text>
-        </View>
-        <Text
-          style={[styles.description, isFocused && styles.textFocused]}
-          numberOfLines={2}
-        >
-          {stripHtml(item.description)}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+        </>
+      )}
+    </FocusableCard>
+  );
 
-  // ... existing code ...
-
-  const renderItem = ({ item }: { item: Announcement }) => {
-    return (
-      <AnnouncementItem
-        item={item}
-        theme={theme}
-        onSelect={setSelectedAnnouncement}
-      />
-    );
-  };
-
-  if (selectedAnnouncement) {
-    return renderDetailView();
-  }
+  const renderItem = ({ item }: { item: Announcement }) => (
+    <AnnouncementItem item={item} />
+  );
 
   if (loading && announcements.length === 0) {
     return (
-      <View
-        style={[
-          styles.container,
-          { justifyContent: 'center', alignItems: 'center' },
-        ]}
-      >
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
@@ -184,11 +108,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  detailContainer: {
+  centered: {
     flex: 1,
-  },
-  detailContent: {
-    paddingHorizontal: rs(60),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     color: 'white',
@@ -198,33 +121,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: rs(20),
   },
-  detailHeaderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: rs(60),
-    marginTop: rs(20),
-    marginBottom: rs(40),
-  },
-  detailHeaderTitle: {
-    color: 'white',
-    fontSize: rs(32),
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  backButtonIcon: {
-    padding: rs(10),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   listContent: {
     paddingBottom: rs(40),
   },
+  cardWrapper: {
+    flex: 1,
+  },
   card: {
-    backgroundColor: 'rgba(20, 20, 20, 0.6)', // Dark glass
+    backgroundColor: 'rgba(20, 20, 20, 0.6)',
     borderRadius: rs(12),
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)', // Blue-ish border
+    borderColor: 'rgba(59, 130, 246, 0.3)',
     padding: rs(30),
     marginBottom: rs(20),
     marginHorizontal: rs(60),
@@ -248,32 +155,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     fontSize: rs(20),
   },
-  // Detail View Styles
-  label: {
-    color: 'white',
-    fontSize: rs(28),
-    marginBottom: rs(16),
-    fontWeight: '500',
-  },
-  valueContainer: {
-    backgroundColor: 'rgba(20, 20, 20, 0.6)',
-    borderRadius: rs(12),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    padding: rs(20),
-    marginBottom: rs(40),
-    width: '100%',
-  },
-  dateContainer: {
-    width: rs(300), // Smaller width for date as per usual design patterns
-  },
-  valueText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: rs(22),
-  },
   cardFocused: {
     transform: [{ scale: 1.02 }],
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Slightly lighter
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderColor: 'white',
   },
   textFocused: {

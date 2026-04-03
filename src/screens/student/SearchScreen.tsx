@@ -5,6 +5,7 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  BackHandler,
 } from 'react-native';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
@@ -52,6 +53,15 @@ const SearchScreen = () => {
       query: '',
     },
   });
+
+  // Intercept Apple TV remote Menu/Back button
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      navigation.goBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]);
 
   useEffect(() => {
     // Fetch original dataset on mount

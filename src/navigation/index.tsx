@@ -14,6 +14,8 @@ import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 // Student Screens
 import StudentHomeScreen from '../screens/student/HomeScreen';
 import SearchScreen from '../screens/student/SearchScreen';
+import AnnouncementsScreen from '../screens/student/AnnouncementsScreen';
+import AnnouncementDetailScreen from '../screens/student/AnnouncementDetailScreen';
 import ProgramDetailScreen from '../screens/student/ProgramDetailScreen';
 import VimeoPlayerScreen from '../screens/student/VimeoPlayerScreen';
 
@@ -36,6 +38,12 @@ export type AuthStackParamList = {
 export type StudentStackParamList = {
   Home: undefined;
   Search: undefined;
+  Announcements: undefined;
+  AnnouncementDetail: {
+    title: string;
+    description: string;
+    createdAt?: string;
+  };
   ProgramDetail: { id: string; type: 'program' | 'category' };
   VideoPlayer: { videoUrl: string; title?: string; contentId?: string };
 };
@@ -90,6 +98,14 @@ const StudentNavigator = () => {
     >
       <StudentStack.Screen name="Home" component={StudentHomeScreen} />
       <StudentStack.Screen name="Search" component={SearchScreen} />
+      <StudentStack.Screen
+        name="Announcements"
+        component={AnnouncementsScreen}
+      />
+      <StudentStack.Screen
+        name="AnnouncementDetail"
+        component={AnnouncementDetailScreen}
+      />
       <StudentStack.Screen
         name="ProgramDetail"
         component={ProgramDetailScreen}

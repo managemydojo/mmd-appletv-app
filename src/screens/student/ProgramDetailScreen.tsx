@@ -7,6 +7,8 @@ import {
   ImageBackground,
   TouchableOpacity,
   Alert,
+  BackHandler,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -341,6 +343,15 @@ const ProgramDetailScreen: React.FC = () => {
     navigation.goBack();
   };
 
+  // Intercept Apple TV remote Menu/Back button
+  React.useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      navigation.goBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
   const renderTierSection = (
     tier: {
       name: string;
@@ -482,13 +493,16 @@ const ProgramDetailScreen: React.FC = () => {
 
             <View style={styles.heroOverlay}>
               {/* Back Button */}
-              <TouchableOpacity
+              <Pressable
                 onPress={handleBackPress}
-                style={styles.backButton}
+                style={({ focused }) => [
+                  styles.backButton,
+                  focused && styles.backButtonFocused,
+                ]}
                 hasTVPreferredFocus={true}
               >
                 <BackIcon width={rs(28)} height={rs(28)} fill="white" />
-              </TouchableOpacity>
+              </Pressable>
 
               {/* Center Play Button — focusable, triggers preview */}
               <TouchableOpacity
@@ -630,6 +644,10 @@ const styles = StyleSheet.create({
     left: rs(20),
     padding: rs(8),
     zIndex: 10,
+    borderRadius: rs(8),
+  },
+  backButtonFocused: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   centerPlay: {
     position: 'absolute',

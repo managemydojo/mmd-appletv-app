@@ -10,7 +10,6 @@ import { HeroSection } from '../../components/student/HeroSection';
 import { HorizontalRow } from '../../components/ui/HorizontalRow';
 import { ProgramCard } from '../../components/ui/ProgramCard';
 import { TrainingAreaCard } from '../../components/ui/TrainingAreaCard';
-import { AnnouncementsView } from '../../components/student/AnnouncementsView';
 // Data & Types
 import { StudyCategory, StudyProgram } from '../../types/study';
 
@@ -40,7 +39,7 @@ const HomeScreen: React.FC = () => {
     fetchTrainingAreas,
   } = useStudyStore();
   const { history, loadHistory } = useWatchHistoryStore();
-  const { theme } = useTheme();
+  useTheme();
 
   useExitConfirmation();
 
@@ -51,11 +50,6 @@ const HomeScreen: React.FC = () => {
     fetchTrainingAreas();
     loadHistory();
   }, [fetchCategories, fetchPrograms, fetchTrainingAreas, loadHistory]);
-
-  // State for View Switching
-  const [currentTab, setCurrentTab] = React.useState<
-    'Curriculum' | 'Announcements'
-  >('Curriculum');
 
   const recentlyWatched = React.useMemo(() => {
     if (!contentItems || contentItems.length === 0) return [];
@@ -99,13 +93,19 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  const handleTabChange = (tab: 'Curriculum' | 'Announcements') => {
+    if (tab === 'Announcements') {
+      navigation.navigate('Announcements');
+    }
+  };
+
   // Shared Header Component
   const renderHeader = () => (
     <View style={styles.headerWrapper}>
       <HomeHeader
-        onTabChange={tab => setCurrentTab(tab)}
+        onTabChange={handleTabChange}
         onLogout={logout}
-        activeTab={currentTab}
+        activeTab="Curriculum"
       />
     </View>
   );
@@ -115,94 +115,84 @@ const HomeScreen: React.FC = () => {
       {/* Absolute Background - Fixed - REMOVED per user request to not overlap sliders */}
       {/* The HeroSection handles its own background now */}
 
-      {/* View Content */}
-      {currentTab === 'Announcements' ? (
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          {renderHeader()}
-          <View style={{ flex: 1 }}>
-            <AnnouncementsView />
-          </View>
+      {/* Curriculum View */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero area — image/video fills full area, header overlays on top */}
+        <View style={styles.heroBannerContainer}>
+          <HeroSection
+            title="Continue Watching"
+            subtitle={heroItem ? heroItem.title : 'Start Learning'}
+            progressText={heroItem?.category?.name || ''}
+            videoUrl={heroItem?.contentLink}
+            onContinuePress={() => heroItem && handlePlayContent(heroItem)}
+          />
+          {/* Header overlaid on top of hero */}
+          <View style={styles.overlaidHeader}>{renderHeader()}</View>
         </View>
-      ) : (
-        /* Curriculum View */
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero area — image/video fills full area, header overlays on top */}
-          <View style={styles.heroBannerContainer}>
-            <HeroSection
-              title="Continue Watching"
-              subtitle={heroItem ? heroItem.title : 'Start Learning'}
-              progressText={heroItem?.category?.name || ''}
-              videoUrl={heroItem?.contentLink}
-              onContinuePress={() => heroItem && handlePlayContent(heroItem)}
-            />
-            {/* Header overlaid on top of hero */}
-            <View style={styles.overlaidHeader}>{renderHeader()}</View>
-          </View>
 
-          <View style={styles.contentSection}>
-            <TVFocusGuideView autoFocus>
-              <HorizontalRow
-                title="Programs"
-                data={programs}
-                keyExtractor={(item: StudyProgram) => item._id}
-                renderItem={({ item }: { item: StudyProgram }) => (
-                  <ProgramCard
-                    title={item.name}
-                    variant="text-only"
-                    onPress={() => handleProgramPress(item)}
-                  />
-                )}
-              />
-            </TVFocusGuideView>
-
-            <TVFocusGuideView autoFocus>
-              <HorizontalRow
-                title="Training Area"
-                data={trainingAreas}
-                keyExtractor={(item: StudyCategory) => item._id}
-                renderItem={({ item }: { item: StudyCategory }) => (
-                  <TrainingAreaCard
-                    title={item.name}
-                    variant="text-only"
-                    onPress={() => handleTrainingAreaPress(item)}
-                  />
-                )}
-              />
-            </TVFocusGuideView>
-
-            {recentlyWatched.length > 0 && (
-              <TVFocusGuideView autoFocus>
-                <HorizontalRow
-                  title="Recently Watched"
-                  data={recentlyWatched}
-                  keyExtractor={(item: StudyContentItem) => item._id}
-                  renderItem={({ item }: { item: StudyContentItem }) => {
-                    const entry = history.find(h => h.contentId === item._id);
-                    return (
-                      <ProgramCard
-                        title={item.title}
-                        progress={entry?.progressPercent ?? 0}
-                        previewUrl={item.contentLink}
-                        image={{
-                          uri:
-                            vimeoThumbnails[item._id] ||
-                            item.ranks?.[0]?.stripeImage ||
-                            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-                        }}
-                        onPress={() => handlePlayContent(item)}
-                      />
-                    );
-                  }}
+        <View style={styles.contentSection}>
+          <TVFocusGuideView autoFocus>
+            <HorizontalRow
+              title="Programs"
+              data={programs}
+              keyExtractor={(item: StudyProgram) => item._id}
+              renderItem={({ item }: { item: StudyProgram }) => (
+                <ProgramCard
+                  title={item.name}
+                  variant="text-only"
+                  onPress={() => handleProgramPress(item)}
                 />
-              </TVFocusGuideView>
-            )}
-          </View>
-        </ScrollView>
-      )}
+              )}
+            />
+          </TVFocusGuideView>
+
+          <TVFocusGuideView autoFocus>
+            <HorizontalRow
+              title="Training Area"
+              data={trainingAreas}
+              keyExtractor={(item: StudyCategory) => item._id}
+              renderItem={({ item }: { item: StudyCategory }) => (
+                <TrainingAreaCard
+                  title={item.name}
+                  variant="text-only"
+                  onPress={() => handleTrainingAreaPress(item)}
+                />
+              )}
+            />
+          </TVFocusGuideView>
+
+          {recentlyWatched.length > 0 && (
+            <TVFocusGuideView autoFocus>
+              <HorizontalRow
+                title="Recently Watched"
+                data={recentlyWatched}
+                keyExtractor={(item: StudyContentItem) => item._id}
+                renderItem={({ item }: { item: StudyContentItem }) => {
+                  const entry = history.find(h => h.contentId === item._id);
+                  return (
+                    <ProgramCard
+                      title={item.title}
+                      progress={entry?.progressPercent ?? 0}
+                      previewUrl={item.contentLink}
+                      image={{
+                        uri:
+                          vimeoThumbnails[item._id] ||
+                          item.ranks?.[0]?.stripeImage ||
+                          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+                      }}
+                      onPress={() => handlePlayContent(item)}
+                    />
+                  );
+                }}
+              />
+            </TVFocusGuideView>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 };
