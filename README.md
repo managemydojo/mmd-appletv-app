@@ -51,13 +51,23 @@ npm start -- --reset-cache
 
 ### Production / Release Build
 
+**Clean & Build Commands (if using CLI):**
+
 ```bash
-rm -rf ios/build
-cd ios && pod install && cd ..
+# Clean the build folder
+cd ios && rm -rf build && xcodebuild clean -workspace MmdAppleTvApp.xcworkspace -scheme MmdAppleTvApp
+
+# Build release (Note: For App Store, using Xcode Archive is recommended instead)
 npx react-native run-ios --scheme "MmdAppleTvApp" --mode Release
 ```
 
-> For App Store distribution, open `MmdAppleTvApp.xcworkspace` in Xcode and use **Product → Archive**.
+**Generate Build for App Store (Recommended):**
+
+1. Open `ios/MmdAppleTvApp.xcworkspace` in Xcode.
+2. In the top menu, go to **Product → Clean Build Folder** (`Cmd + Shift + K`).
+3. Set the target device to **Any tvOS Device (arm64)**.
+4. Go to **Product → Archive**.
+5. **Output Location:** Once finished, the Xcode **Organizer** window will open containing your archived build, ready to "Distribute App".
 
 ---
 
@@ -73,7 +83,9 @@ npx react-native run-android --active-arch-only   # Tab 2 — build & install
 
 ### Production Build (Google Play)
 
-Always clean before a new release build to avoid caching issues.
+Run these commands to clean the project and generate a new production bundle (AAB).
+
+**Clean & Build Commands:**
 
 ```bash
 cd android
@@ -81,7 +93,9 @@ cd android
 ./gradlew bundleRelease
 ```
 
-> Output AAB: `android/app/build/outputs/bundle/release/app-release.aab`
+**Output Location:**
+Once the build completes, your production bundle will be located at:
+👉 `android/app/build/outputs/bundle/release/app-release.aab`
 
 ### Test Release Build Locally
 
