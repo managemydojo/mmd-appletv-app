@@ -14,6 +14,7 @@ import { rs } from '../../theme/responsive';
 import PlayButton from '../../../assets/icons/play_button.svg';
 import Video from 'react-native-video';
 import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
+import { useStudentSettingsStore } from '../../store/useStudentSettingsStore';
 
 interface ProgramCardProps {
   title: string;
@@ -45,6 +46,8 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
   style,
 }) => {
   const { theme } = useTheme();
+  const autoplayVideos = useStudentSettingsStore(s => s.autoplayVideos);
+  const autoplaySound = useStudentSettingsStore(s => s.autoplaySound);
   const [isFocused, setIsFocused] = useState(false);
   const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(
     null,
@@ -62,7 +65,8 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
 
   const handleFocus = useCallback(() => {
     setIsFocused(true);
-    if (previewUrl && variant !== 'text-only') {
+    // Respect the student's autoplay preference for hover previews.
+    if (previewUrl && variant !== 'text-only' && autoplayVideos) {
       previewTimer.current = setTimeout(async () => {
         const resolved = await resolveVimeoUrl(previewUrl);
         if (resolved && isMounted.current) {
@@ -71,7 +75,7 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
         }
       }, PREVIEW_DELAY_MS);
     }
-  }, [previewUrl, variant]);
+  }, [previewUrl, variant, autoplayVideos]);
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
@@ -141,12 +145,13 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
               resizeMode="cover"
             />
 
-            {/* Hover-to-play preview — resolved HLS video on focus */}
+            {/* Hover-to-play preview — resolved HLS video on focus. Respects
+                 the student's "Play with sound" setting. */}
             {showPreview && resolvedPreviewUrl && (
               <Video
                 source={{ uri: resolvedPreviewUrl }}
                 style={[StyleSheet.absoluteFill, { borderRadius: rs(8) }]}
-                muted={false}
+                muted={!autoplaySound}
                 repeat={true}
                 resizeMode="cover"
                 controls={false}

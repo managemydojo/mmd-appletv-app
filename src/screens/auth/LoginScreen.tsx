@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
 import { TVTextInput } from '../../components/ui/TVTextInput';
 import { TVButton } from '../../components/ui/TVButton';
+import { FocusableCard } from '../../components/ui/FocusableCard';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,7 +36,10 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       await login(data.userName, data.password);
     } catch {
-      // Error handled in store
+      // useAuthStore already writes a user-friendly message to `apiError`,
+      // which the error UI below renders. Nothing else to do here — the
+      // backend role drives routing on success, so no mismatch-redirect
+      // logic is needed.
     }
   };
 
@@ -56,6 +60,11 @@ export default function LoginScreen({ navigation }: Props) {
                 onChangeText={onChange}
                 placeholder=""
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="username"
+                autoComplete="username"
+                keyboardType="default"
+                returnKeyType="next"
                 style={styles.input}
                 containerStyle={styles.inputContainer}
               />
@@ -73,11 +82,19 @@ export default function LoginScreen({ navigation }: Props) {
               control={control}
               name="password"
               render={({ field: { onChange, value } }) => (
+                // NOTE: intentionally no `onSubmitEditing` — Sign In should
+                // only fire when the user presses the Sign In button, not
+                // when the keyboard "Done" key is tapped (tvOS UX preference).
                 <TVTextInput
                   value={value}
                   onChangeText={onChange}
                   secureTextEntry={!showPassword}
                   placeholder=""
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="password"
+                  autoComplete="password"
+                  returnKeyType="done"
                   style={styles.input}
                   containerStyle={styles.inputContainer}
                   showVisibilityIcon={false}
@@ -96,12 +113,24 @@ export default function LoginScreen({ navigation }: Props) {
         {/* Bottom Row Actions */}
         <View style={styles.bottomRow}>
           <View style={styles.bottomColLeft}>
-            <TouchableOpacity
+            <FocusableCard
               onPress={() => navigation.navigate('ForgotPassword')}
               style={styles.forgotPasswordButton}
+              focusedStyle={styles.forgotPasswordButtonFocused}
+              wrapperStyle={styles.linkWrapper}
+              scaleOnFocus={false}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password</Text>
-            </TouchableOpacity>
+              {({ focused }) => (
+                <Text
+                  style={[
+                    styles.forgotPasswordText,
+                    focused && styles.forgotPasswordTextFocused,
+                  ]}
+                >
+                  Forgot Password
+                </Text>
+              )}
+            </FocusableCard>
           </View>
 
           <View style={styles.bottomColCenter}>
@@ -115,19 +144,23 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.bottomColRight}>
-            <TouchableOpacity
+            <FocusableCard
               onPress={() => setShowPassword(!showPassword)}
               style={styles.showButton}
-              focusable={true}
+              focusedStyle={styles.showButtonFocused}
+              wrapperStyle={styles.linkWrapper}
+              scaleOnFocus={false}
               accessible={true}
               accessibilityLabel={
                 showPassword ? 'Hide password' : 'Show password'
               }
             >
-              <Text style={styles.showButtonText}>
-                {showPassword ? 'Hide Password' : 'Show Password'}
-              </Text>
-            </TouchableOpacity>
+              {() => (
+                <Text style={styles.showButtonText}>
+                  {showPassword ? 'Hide Password' : 'Show Password'}
+                </Text>
+              )}
+            </FocusableCard>
           </View>
         </View>
       </View>
@@ -180,11 +213,21 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE', // blue-200
     backgroundColor: 'transparent',
   },
+  showButtonFocused: {
+    borderColor: '#4A90E2',
+    backgroundColor: 'rgba(74,144,226,0.15)',
+    transform: [{ scale: 1.05 }],
+  },
   showButtonText: {
     fontFamily: 'SF Pro Display',
     fontWeight: '400',
     fontSize: SCREEN_THEME.typography.showTextSize,
     color: '#FFFFFF',
+  },
+  linkWrapper: {
+    flex: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomRow: {
     flexDirection: 'row',
@@ -222,8 +265,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   forgotPasswordButton: {
-    paddingVertical: rs(20),
+    paddingVertical: rs(16),
+    paddingHorizontal: rs(20),
+    borderRadius: rs(12),
+    borderWidth: 2,
+    borderColor: 'transparent',
     justifyContent: 'center',
+  },
+  forgotPasswordButtonFocused: {
+    borderColor: '#4A90E2',
+    backgroundColor: 'rgba(74,144,226,0.15)',
+    transform: [{ scale: 1.05 }],
   },
   forgotPasswordText: {
     fontFamily: 'SF Pro Display',
@@ -231,6 +283,9 @@ const styles = StyleSheet.create({
     fontSize: SCREEN_THEME.typography.buttonTextSize,
     color: SCREEN_THEME.colors.forgotPasswordText,
     textAlign: 'center',
+  },
+  forgotPasswordTextFocused: {
+    color: '#FFFFFF',
   },
   errorContainer: {
     width: '100%',

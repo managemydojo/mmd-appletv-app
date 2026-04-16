@@ -18,6 +18,7 @@ import AnnouncementsScreen from '../screens/student/AnnouncementsScreen';
 import AnnouncementDetailScreen from '../screens/student/AnnouncementDetailScreen';
 import ProgramDetailScreen from '../screens/student/ProgramDetailScreen';
 import VimeoPlayerScreen from '../screens/student/VimeoPlayerScreen';
+import StudentSettingsScreen from '../screens/student/StudentSettingsScreen';
 
 // Dojo Screens
 import DojoCastConnectScreen from '../screens/dojo/DojoCastConnectScreen';
@@ -46,6 +47,7 @@ export type StudentStackParamList = {
   };
   ProgramDetail: { id: string; type: 'program' | 'category' };
   VideoPlayer: { videoUrl: string; title?: string; contentId?: string };
+  Settings: undefined;
 };
 
 export type DojoStackParamList = {
@@ -111,6 +113,7 @@ const StudentNavigator = () => {
         component={ProgramDetailScreen}
       />
       <StudentStack.Screen name="VideoPlayer" component={VimeoPlayerScreen} />
+      <StudentStack.Screen name="Settings" component={StudentSettingsScreen} />
     </StudentStack.Navigator>
   );
 };

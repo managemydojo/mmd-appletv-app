@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { secureStorage } from '../services/axios';
 import { authService } from '../services/authService';
 import type { CurrentUser, AuthState } from '../types/auth';
+import { getBackendRoleName, normalizeBackendRole } from '../utils/authHelpers';
 
 interface AuthActions {
   login: (userName: string, password: string) => Promise<void>;
@@ -28,7 +29,7 @@ const initialState: AuthState = {
   selectedRole: undefined, // Add selectedRole to state
 };
 
-export const useAuthStore = create<AuthStore>(set => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   ...initialState,
 
   setRole: async (role: 'student' | 'dojo' | 'admin') => {
@@ -41,7 +42,14 @@ export const useAuthStore = create<AuthStore>(set => ({
   },
 
   /**
-   * Login with userName and password
+   * Login with userName and password.
+   *
+   * After successful authentication the backend-returned role
+   * (userRole.role.name) is used as the source of truth for selectedRole.
+   * This auto-corrects the role the user tapped on RoleSelectScreen and routes
+   * them to the correct stack (Student / Dojo Cast / Admin) regardless of which
+   * tile they pressed. If the backend returns an unrecognized role name the
+   * user's tapped selection is kept as a fallback.
    */
   login: async (userName: string, password: string) => {
     set({ isLoading: true, apiError: null });
@@ -61,9 +69,11 @@ export const useAuthStore = create<AuthStore>(set => ({
           refreshToken?: string;
           token?: string;
           user?: Record<string, string>;
+          userRole?: { role?: { name?: string; _id?: string } };
           _id?: string;
           email?: string;
           firstName?: string;
+          lastName?: string;
         }
 
         const responseData = response.data as unknown as LoginResponseData;
@@ -71,39 +81,67 @@ export const useAuthStore = create<AuthStore>(set => ({
         const refreshToken = responseData.refreshToken;
         const userData = response.data;
 
-        // Store tokens securely
-        // The API may return token with 'Bearer ' prefix (as dojo-app handles).
-        // Strip it before storing so the axios interceptor can add it cleanly.
-        if (token && typeof token === 'string') {
-          const cleanToken = token.startsWith('Bearer ')
-            ? token.replace('Bearer ', '')
-            : token;
-          await secureStorage.setToken(cleanToken);
-          // Update local reference for the set() call below
-          set({
-            user: { ...userData, accessToken: cleanToken } as CurrentUser,
-            token: cleanToken,
-            isAuthenticated: true,
-            isLoading: false,
-            apiError: null,
-          });
-        } else {
+        // Validate token exists before doing anything else
+        if (!token || typeof token !== 'string') {
           throw new Error('No valid token received from login response');
         }
+
+        // --- Role resolution from backend ---
+        // Role can come back as `data.userRole.role.name` or nested under
+        // `data.user.userRole` depending on backend shape.
+        const backendRoleName =
+          responseData.userRole?.role?.name ||
+          getBackendRoleName(userData as unknown as CurrentUser) ||
+          '';
+        const normalizedBackendRole = normalizeBackendRole(backendRoleName);
+
+        // Use the backend role as the source of truth.
+        // If recognized, persist it so the navigator shows the correct stack.
+        // If unrecognized (normalizedBackendRole === null), keep whatever the
+        // user tapped on RoleSelectScreen as a fallback.
+        if (normalizedBackendRole) {
+          try {
+            await secureStorage.setSelectedRole(normalizedBackendRole);
+          } catch {
+            // non-fatal — store will still be updated below
+          }
+        }
+        const resolvedRole = normalizedBackendRole ?? get().selectedRole;
+
+        // Store token (strip Bearer prefix if present)
+        const cleanToken = token.startsWith('Bearer ')
+          ? token.replace('Bearer ', '')
+          : token;
+        await secureStorage.setToken(cleanToken);
+
         if (refreshToken && typeof refreshToken === 'string') {
           await secureStorage.setRefreshToken(refreshToken);
         }
 
-        // Store minimal user data
-        const userInfo: Record<string, string> =
-          (responseData.user as Record<string, string>) ||
-          (responseData as Record<string, string>);
-        const essentialUserData = {
-          _id: userInfo._id || '',
-          email: userInfo.email || '',
-          firstName: userInfo.firstName || '',
+        // Persist essential user data (expanded to include lastName + userRole
+        // so full-name display and role info survive app restart).
+        const userInfo: Record<string, unknown> =
+          (responseData.user as Record<string, unknown>) ||
+          (responseData as unknown as Record<string, unknown>);
+        const essentialUserData: Record<string, unknown> = {
+          _id: (userInfo._id as string) || '',
+          email: (userInfo.email as string) || '',
+          firstName: (userInfo.firstName as string) || '',
+          lastName: (userInfo.lastName as string) || '',
         };
+        if (responseData.userRole) {
+          essentialUserData.userRole = responseData.userRole;
+        }
         await secureStorage.setUserData(JSON.stringify(essentialUserData));
+
+        set({
+          user: { ...userData, accessToken: cleanToken } as CurrentUser,
+          token: cleanToken,
+          isAuthenticated: true,
+          isLoading: false,
+          apiError: null,
+          ...(resolvedRole ? { selectedRole: resolvedRole } : {}),
+        });
       } else {
         const errorMessage =
           response?.message || 'Login failed - no data received';

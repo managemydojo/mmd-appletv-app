@@ -16,6 +16,7 @@ import {
   resolveVimeoUrl,
   fetchVimeoThumbnail,
 } from '../../utils/resolveVimeoUrl';
+import { useStudentSettingsStore } from '../../store/useStudentSettingsStore';
 
 interface HeroSectionProps {
   title: string;
@@ -40,6 +41,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   withBackground = true,
 }) => {
   const { theme } = useTheme();
+  const autoplayVideos = useStudentSettingsStore(s => s.autoplayVideos);
+  const autoplaySound = useStudentSettingsStore(s => s.autoplaySound);
   const [isFocused, setIsFocused] = useState(false);
   const [resolvedThumb, setResolvedThumb] = useState<string | null>(null);
   const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string | null>(null);
@@ -66,7 +69,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const handleFocus = useCallback(() => {
     setIsFocused(true);
-    if (videoUrl) {
+    // Respect the student's autoplay preference — if disabled, never trigger
+    // the hover-to-play preview.
+    if (videoUrl && autoplayVideos) {
       previewTimer.current = setTimeout(async () => {
         let previewUrl = resolvedVideoUrl;
         if (!previewUrl) {
@@ -80,7 +85,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         }
       }, PREVIEW_DELAY_MS);
     }
-  }, [videoUrl, resolvedVideoUrl]);
+  }, [videoUrl, resolvedVideoUrl, autoplayVideos]);
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
@@ -100,12 +105,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const content = (
     <>
-      {/* Hover-to-play preview video */}
+      {/* Hover-to-play preview video. Muted flag respects the student's
+           "Play with sound" setting. */}
       {showPreview && resolvedVideoUrl && (
         <Video
           source={{ uri: resolvedVideoUrl }}
           style={StyleSheet.absoluteFillObject}
-          muted={false}
+          muted={!autoplaySound}
           repeat={true}
           resizeMode="cover"
           controls={false}

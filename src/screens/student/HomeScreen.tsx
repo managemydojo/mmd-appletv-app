@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, TVFocusGuideView } from 'react-native';
-import { useAuthStore } from '../../store/useAuthStore';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
 
@@ -29,7 +28,6 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-  const { logout } = useAuthStore();
   const {
     programs,
     trainingAreas,
@@ -101,21 +99,14 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  // Shared Header Component
-  const renderHeader = () => (
-    <View style={styles.headerWrapper}>
-      <HomeHeader
-        onTabChange={handleTabChange}
-        onLogout={logout}
-        activeTab="Curriculum"
-      />
-    </View>
-  );
-
   return (
     <View style={styles.container}>
-      {/* Absolute Background - Fixed - REMOVED per user request to not overlap sliders */}
-      {/* The HeroSection handles its own background now */}
+      {/* Sticky header — sits above the scroll content so it remains visible
+           as the user scrolls down. Previously the header was overlaid on the
+           hero inside the ScrollView, which hid it on scroll. */}
+      <View style={styles.stickyHeader}>
+        <HomeHeader onTabChange={handleTabChange} activeTab="Curriculum" />
+      </View>
 
       {/* Curriculum View */}
       <ScrollView
@@ -123,18 +114,14 @@ const HomeScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero area — image/video fills full area, header overlays on top */}
-        <View style={styles.heroBannerContainer}>
-          <HeroSection
-            title="Continue Watching"
-            subtitle={heroItem ? heroItem.title : 'Start Learning'}
-            progressText={heroItem?.category?.name || ''}
-            videoUrl={heroItem?.contentLink}
-            onContinuePress={() => heroItem && handlePlayContent(heroItem)}
-          />
-          {/* Header overlaid on top of hero */}
-          <View style={styles.overlaidHeader}>{renderHeader()}</View>
-        </View>
+        {/* Hero — no overlaid header now; sticky header sits above it */}
+        <HeroSection
+          title="Continue Watching"
+          subtitle={heroItem ? heroItem.title : 'Start Learning'}
+          progressText={heroItem?.category?.name || ''}
+          videoUrl={heroItem?.contentLink}
+          onContinuePress={() => heroItem && handlePlayContent(heroItem)}
+        />
 
         <View style={styles.contentSection}>
           <TVFocusGuideView autoFocus>
@@ -208,9 +195,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  backgroundOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+  stickyHeader: {
+    // Fixed at top above the ScrollView. The glass pill already has its own
+    // dark translucent background so the hero image behind the ScrollView
+    // remains readable underneath as it scrolls.
+    width: '100%',
+    zIndex: 10,
   },
   scrollView: {
     flex: 1,
@@ -218,29 +208,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: rs(50),
   },
-  headerWrapper: {
-    paddingBottom: rs(20), // Spacing below header in all views
-  },
-  heroContainer: {
-    marginBottom: rs(20),
-  },
-  heroBannerContainer: {
-    position: 'relative',
-  },
-  overlaidHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
   contentSection: {
     paddingTop: rs(20),
-  },
-  headerBackground: {
-    width: '100%',
-    // Remove fixed height, let content define it?
-    // Or set minHeight to ensure it covers enough
   },
 });
 

@@ -11,22 +11,21 @@ import { rs } from '../../theme/responsive';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import SearchIcon from '../../../assets/icons/search-icon.svg';
-import ProfileIcon from '../../../assets/icons/profile.svg';
-import LogoutIcon from '../../../assets/icons/logout.svg';
 
 // Shared glass background (matches Figma)
 const GLASS_BG = 'rgba(20, 20, 20, 0.6)';
 const GLASS_BORDER = 'rgba(255, 255, 255, 0.1)';
+// Accent used consistently for focus rings across the app
+const FOCUS_BLUE = '#4A90E2';
+const FOCUS_BLUE_TINT = 'rgba(74,144,226,0.5)';
 
 interface HomeHeaderProps {
   onTabChange?: (tab: 'Curriculum' | 'Announcements') => void;
-  onLogout: () => void;
   activeTab?: 'Curriculum' | 'Announcements';
 }
 
 export const HomeHeader: React.FC<HomeHeaderProps> = ({
   onTabChange,
-  onLogout,
   activeTab = 'Curriculum',
 }) => {
   useTheme();
@@ -40,9 +39,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
     'Curriculum' | 'Announcements' | null
   >(null);
   const [searchFocused, setSearchFocused] = React.useState(false);
-  const [profileFocused, setProfileFocused] = React.useState(false);
-  const [logoutFocused, setLogoutFocused] = React.useState(false);
-  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [settingsFocused, setSettingsFocused] = React.useState(false);
 
   const handleSearchPress = () => {
     if (route.name === 'Search') {
@@ -56,25 +53,8 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
     if (onTabChange) onTabChange(tab);
   };
 
-  const handleProfilePress = () => {
-    setShowDropdown(prev => !prev);
-  };
-
-  const handleProfileFocus = () => {
-    setProfileFocused(true);
-    setShowDropdown(true);
-  };
-
-  const handleProfileBlur = () => {
-    setProfileFocused(false);
-    setTimeout(() => {
-      if (!logoutFocused) setShowDropdown(false);
-    }, 150);
-  };
-
-  const handleLogoutPress = () => {
-    setShowDropdown(false);
-    onLogout();
+  const handleSettingsPress = () => {
+    navigation.navigate('Settings');
   };
 
   return (
@@ -99,11 +79,17 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Curriculum Tab — hug content, no flex */}
+          {/* Curriculum Tab */}
           <TouchableOpacity
             onPress={() => handleTabPress('Curriculum')}
             onFocus={() => setFocusedTab('Curriculum')}
-            onBlur={() => setFocusedTab(null)}
+            // Guard blur: only clear if we're still the focused tab. Prevents
+            // a stale onBlur firing AFTER the sibling's onFocus from wiping
+            // out the new focus state (tvOS does not guarantee onBlur runs
+            // before the next onFocus — see Curriculum → Announcements bug).
+            onBlur={() =>
+              setFocusedTab(prev => (prev === 'Curriculum' ? null : prev))
+            }
             style={[
               styles.tab,
               activeTab === 'Curriculum' && styles.activeTab,
@@ -121,20 +107,21 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
                 activeTab === 'Curriculum'
                   ? styles.activeTabText
                   : styles.inactiveTabText,
-                focusedTab === 'Curriculum' &&
-                  activeTab !== 'Curriculum' &&
-                  styles.focusedItemText,
+                focusedTab === 'Curriculum' && styles.focusedItemText,
               ]}
             >
               Curriculum
             </Text>
           </TouchableOpacity>
 
-          {/* Announcements Tab — hug content, no flex */}
+          {/* Announcements Tab */}
           <TouchableOpacity
             onPress={() => handleTabPress('Announcements')}
             onFocus={() => setFocusedTab('Announcements')}
-            onBlur={() => setFocusedTab(null)}
+            // Same guard as Curriculum — see note above.
+            onBlur={() =>
+              setFocusedTab(prev => (prev === 'Announcements' ? null : prev))
+            }
             style={[
               styles.tab,
               activeTab === 'Announcements' && styles.activeTab,
@@ -152,9 +139,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
                 activeTab === 'Announcements'
                   ? styles.activeTabText
                   : styles.inactiveTabText,
-                focusedTab === 'Announcements' &&
-                  activeTab !== 'Announcements' &&
-                  styles.focusedItemText,
+                focusedTab === 'Announcements' && styles.focusedItemText,
               ]}
             >
               Announcements
@@ -162,43 +147,29 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* ── Profile Button + Dropdown ── */}
-        <View style={styles.profileArea}>
+        {/* ── Settings Button — navigates to StudentSettingsScreen.
+             Replaces the previous profile dropdown (logout now lives inside
+             Settings, matching the Dojo Cast pattern). ── */}
+        <View style={styles.settingsArea}>
           <TouchableOpacity
-            onPress={handleProfilePress}
-            onFocus={handleProfileFocus}
-            onBlur={handleProfileBlur}
+            onPress={handleSettingsPress}
+            onFocus={() => setSettingsFocused(true)}
+            onBlur={() => setSettingsFocused(false)}
             style={[
-              styles.profileBtn,
-              profileFocused && styles.profileBtnFocused,
+              styles.settingsBtn,
+              settingsFocused && styles.settingsBtnFocused,
             ]}
+            accessibilityLabel="Settings"
           >
-            <ProfileIcon width={rs(28)} height={rs(28)} />
+            <Text
+              style={[
+                styles.settingsIcon,
+                settingsFocused && styles.settingsIconFocused,
+              ]}
+            >
+              {'\u2699'}
+            </Text>
           </TouchableOpacity>
-
-          {/* Dropdown — glass bg, below profile button */}
-          {showDropdown && (
-            <View style={styles.dropdown}>
-              <Text style={styles.dropdownTitle}>Return to Main Screen</Text>
-              <TouchableOpacity
-                onFocus={() => setLogoutFocused(true)}
-                onBlur={() => {
-                  setLogoutFocused(false);
-                  setTimeout(() => {
-                    if (!profileFocused) setShowDropdown(false);
-                  }, 150);
-                }}
-                onPress={handleLogoutPress}
-                style={[
-                  styles.logoutRow,
-                  logoutFocused && styles.logoutRowFocused,
-                ]}
-              >
-                <LogoutIcon width={rs(22)} height={rs(22)} />
-                <Text style={styles.logoutRowText}>Log out</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       </View>
     </TVFocusGuideView>
@@ -245,16 +216,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: 'transparent',
   },
   focusedSearch: {
-    borderWidth: 2,
-    borderColor: '#4A90E2',
-    backgroundColor: 'rgba(74, 144, 226, 0.15)',
-    transform: [{ scale: 1.05 }],
+    borderWidth: 3,
+    borderColor: FOCUS_BLUE,
+    backgroundColor: FOCUS_BLUE_TINT,
+    transform: [{ scale: 1.1 }],
   },
-  // Tabs — NO flex:1, hug content with padding
+  // Tabs — hug content with padding. 3px transparent border keeps layout
+  // stable when the focused state swaps to a colored border.
   tab: {
     paddingVertical: rs(16),
     paddingHorizontal: rs(40),
@@ -265,13 +237,19 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: '#3B82F6',
   },
+  // Active tab + focused — bright white ring on top of the blue fill so it
+  // stands out clearly against the blue.
+  // NOTE: No transform/scale here — scaling a tab inside the pill shifts its
+  // visual bounds and confuses the tvOS spatial-navigation engine when
+  // navigating between adjacent sibling tabs (e.g. Curriculum → Announcements).
   activeFocusedTab: {
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-    transform: [{ scale: 1.05 }],
+    borderColor: '#FFFFFF',
   },
+  // Inactive tab focused — strong blue ring + tinted background.
+  // Same reasoning: no scale transform on sibling tabs.
   focusedItem: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    borderColor: '#3B82F6',
+    backgroundColor: FOCUS_BLUE_TINT,
+    borderColor: FOCUS_BLUE,
   },
   focusedItemText: {
     color: '#FFFFFF',
@@ -288,60 +266,32 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
 
-  // ── Profile + Dropdown ──
-  profileArea: {
-    position: 'relative',
+  // ── Settings ──
+  settingsArea: {
     alignItems: 'flex-end',
     zIndex: 50,
   },
-  profileBtn: {
+  settingsBtn: {
     width: rs(64),
     height: rs(64),
     borderRadius: rs(14),
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: GLASS_BG,
-    borderWidth: 1,
+    borderWidth: 3,
     borderColor: GLASS_BORDER,
     flexShrink: 0,
   },
-  profileBtnFocused: {
-    backgroundColor: 'rgba(60,60,60,0.8)',
-    borderColor: 'rgba(255,255,255,0.35)',
-    transform: [{ scale: 1.06 }],
+  settingsBtnFocused: {
+    backgroundColor: FOCUS_BLUE_TINT,
+    borderColor: FOCUS_BLUE,
+    transform: [{ scale: 1.08 }],
   },
-  dropdown: {
-    position: 'absolute',
-    top: rs(72),
-    right: 0,
-    backgroundColor: GLASS_BG,
-    borderRadius: rs(16),
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    paddingVertical: rs(24),
-    paddingHorizontal: rs(32),
-    minWidth: rs(320),
+  settingsIcon: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: rs(32),
   },
-  dropdownTitle: {
-    color: 'rgba(255,255,255,0.95)',
-    fontSize: rs(26),
-    fontWeight: '600',
-    marginBottom: rs(16),
-  },
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: rs(10),
-    paddingVertical: rs(10),
-    paddingHorizontal: rs(8),
-    borderRadius: rs(10),
-  },
-  logoutRowFocused: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  logoutRowText: {
-    color: '#9E0000',
-    fontSize: rs(24),
-    fontWeight: '700',
+  settingsIconFocused: {
+    color: '#FFFFFF',
   },
 });

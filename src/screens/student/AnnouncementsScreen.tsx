@@ -3,7 +3,6 @@ import { View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme';
-import { useAuthStore } from '../../store/useAuthStore';
 import { HomeHeader } from '../../components/student/HomeHeader';
 import { AnnouncementsView } from '../../components/student/AnnouncementsView';
 import { StudentStackParamList } from '../../navigation';
@@ -12,7 +11,6 @@ type Nav = NativeStackNavigationProp<StudentStackParamList, 'Announcements'>;
 
 const AnnouncementsScreen = () => {
   const navigation = useNavigation<Nav>();
-  const { logout } = useAuthStore();
   const { theme } = useTheme();
 
   const handleTabChange = (tab: 'Curriculum' | 'Announcements') => {
@@ -25,11 +23,7 @@ const AnnouncementsScreen = () => {
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <HomeHeader
-        onTabChange={handleTabChange}
-        onLogout={logout}
-        activeTab="Announcements"
-      />
+      <HomeHeader onTabChange={handleTabChange} activeTab="Announcements" />
       <View style={styles.content}>
         <AnnouncementsView />
       </View>

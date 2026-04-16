@@ -97,7 +97,7 @@ const DojoCastSetupScreen = () => {
         </Text>
         <View style={styles.connectionRow}>
           <View style={styles.connectionDot} />
-          <Text style={styles.connectionText}>Google Slides connected</Text>
+          <Text style={styles.connectionText}>Slides connected</Text>
         </View>
       </View>
 

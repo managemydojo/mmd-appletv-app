@@ -35,14 +35,14 @@ const DojoCastConnectScreen = () => {
 
       {/* Subtitle */}
       <Text style={[styles.subtitle, { color: theme.colors.text }]}>
-        Connect Google Slides
+        Connect Slides
       </Text>
 
       {/* Description */}
       <Text style={styles.description}>
-        Choose the Google Slides presentation you'd like to display on your dojo
-        screen .{'\n'}This presentation will be shown during classes,
-        announcements, and events using{'\n'}your dojo's email account.
+        Choose the slide presentation you'd like to display on your dojo screen.
+        {'\n'}This presentation will be shown during classes, announcements, and
+        events.
       </Text>
       <Text style={[styles.description, { marginTop: rs(8) }]}>
         You can change or manage the connected presentation at any time
@@ -73,7 +73,7 @@ const DojoCastConnectScreen = () => {
         {() => (
           <View style={styles.selectButtonInner}>
             <FileIcon width={rs(28)} height={rs(28)} />
-            <Text style={styles.selectButtonText}>Select Google Slides</Text>
+            <Text style={styles.selectButtonText}>Select Slides</Text>
           </View>
         )}
       </FocusableCard>
@@ -125,10 +125,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(12),
-  },
-  slidesIconContainer: {
-    width: rs(28),
-    height: rs(28),
   },
   selectButtonText: {
     fontSize: rs(28),

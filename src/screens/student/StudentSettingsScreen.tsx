@@ -1,29 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ImageBackground } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { rs } from '../../theme/responsive';
 import { FocusableCard } from '../../components/ui/FocusableCard';
-import { DojoStackParamList } from '../../navigation';
+import { StudentStackParamList } from '../../navigation';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getUserEmail, getUserFullName } from '../../utils/authHelpers';
 import PlaybackSection from './settings/PlaybackSection';
-import OfflineCacheSection from './settings/OfflineCacheSection';
-import RotationSection from './settings/RotationSection';
-import AboutSection from './settings/AboutSection';
 
-type Nav = NativeStackNavigationProp<DojoStackParamList, 'Settings'>;
+type Nav = NativeStackNavigationProp<StudentStackParamList, 'Settings'>;
 
-type TabId = 'Playback' | 'Offline & Cache' | 'Rotation' | 'About';
-
-const TABS: TabId[] = ['Playback', 'Offline & Cache', 'Rotation', 'About'];
+type TabId = 'Playback';
+const TABS: TabId[] = ['Playback'];
 
 const KARATE_BG =
   'https://images.unsplash.com/photo-1514050566906-8d077bae7046?w=1920&q=80';
 
-const DojoCastSettingsScreen = () => {
+const StudentSettingsScreen = () => {
   const navigation = useNavigation<Nav>();
-  const [activeTab, setActiveTab] = useState<TabId>('Playback');
+  const [activeTab, setActiveTab] = React.useState<TabId>('Playback');
   const { logout } = useAuthStore();
   const accountEmail = useAuthStore(s => getUserEmail(s.user));
   const accountName = useAuthStore(s => getUserFullName(s.user));
@@ -37,20 +33,13 @@ const DojoCastSettingsScreen = () => {
     switch (activeTab) {
       case 'Playback':
         return <PlaybackSection />;
-      case 'Offline & Cache':
-        return <OfflineCacheSection />;
-      case 'Rotation':
-        return <RotationSection />;
-      case 'About':
-        return <AboutSection />;
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Dojo Cast Setting</Text>
+        <Text style={styles.headerTitle}>Student Settings</Text>
         <FocusableCard
           onPress={() => navigation.goBack()}
           style={styles.backButton}
@@ -63,8 +52,6 @@ const DojoCastSettingsScreen = () => {
       </View>
       <View style={styles.headerDivider} />
 
-      {/* Body — sidebar and content panel are horizontally adjacent,
-           spatial navigation handles LEFT/RIGHT between them natively */}
       <View style={styles.body}>
         {/* Left sidebar */}
         <View style={styles.sidebar}>
@@ -276,4 +263,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DojoCastSettingsScreen;
+export default StudentSettingsScreen;
