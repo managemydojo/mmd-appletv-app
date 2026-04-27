@@ -13,6 +13,7 @@ import { rs } from '../../theme/responsive';
 import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
 import Video, { OnProgressData, OnLoadData } from 'react-native-video';
 import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
+import { getMediaType } from '../../utils/getMediaType';
 
 type VimeoPlayerRouteProp = RouteProp<StudentStackParamList, 'VideoPlayer'>;
 type VimeoPlayerNavigationProp = NativeStackNavigationProp<
@@ -62,15 +63,10 @@ const VimeoPlayerScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Only record video content in watch history. The upstream callers
-    // already gate on contentLink type, but guard here too so history
-    // stays strictly video-only regardless of navigation path.
-    const isVideoUrl =
-      !!videoUrl &&
-      (videoUrl.includes('vimeo') ||
-        videoUrl.includes('.mp4') ||
-        videoUrl.includes('.m3u8'));
-    if (contentId && isVideoUrl) {
+    // Only record video content in watch history. PDF/image viewers never
+    // touch the store; this guard keeps history strictly video-only even if
+    // an upstream caller routes a non-video URL into VideoPlayer by mistake.
+    if (contentId && getMediaType(videoUrl) === 'video') {
       addToHistory({ contentId, title: title || 'Unknown Video' });
     }
 
