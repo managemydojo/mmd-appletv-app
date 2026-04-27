@@ -13,7 +13,6 @@ import { useExitConfirmation } from '../../hooks/useExitConfirmation';
 import Logo from '../../../assets/icons/logo.svg';
 import StudentIcon from '../../../assets/images/role_student.svg';
 import DojoIcon from '../../../assets/images/role_dojocast.svg';
-import AdminIcon from '../../../assets/images/role_admin.svg';
 
 // ─── Figma Inspector Values ──────────────────────────────────────
 const SCREEN_THEME = {
@@ -91,13 +90,6 @@ export default function RoleSelectScreen({ navigation }: Props) {
             title="Dojo Cast"
             Icon={DojoIcon}
             onPress={() => handleRoleSelect('dojo')}
-          />
-          {/* Admin — disabled (Coming Soon) */}
-          <RoleCard
-            title="Admin"
-            Icon={AdminIcon}
-            onPress={() => handleRoleSelect('admin')}
-            disabled
           />
         </View>
       </View>
