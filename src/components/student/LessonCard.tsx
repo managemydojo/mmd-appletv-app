@@ -15,6 +15,8 @@ import LockIcon from '../../../assets/icons/lock.svg';
 import Video from 'react-native-video';
 import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
 import { useStudentSettingsStore } from '../../store/useStudentSettingsStore';
+import { MediaTypeBadge } from './MediaTypeBadge';
+import type { MediaType } from '../../utils/getMediaType';
 
 interface LessonCardProps {
   title?: string;
@@ -29,6 +31,8 @@ interface LessonCardProps {
   onPress?: () => void;
   width?: number;
   height?: number;
+  /** Media kind — when 'pdf' or 'image', a corner badge is rendered. */
+  mediaType?: MediaType;
 }
 
 /** Debounce delay before starting a preview (avoids loading during fast scrolling) */
@@ -49,6 +53,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
   onPress,
   width = rs(380),
   height = rs(240),
+  mediaType,
 }) => {
   const { theme } = useTheme();
   const autoplayVideos = useStudentSettingsStore(s => s.autoplayVideos);
@@ -236,6 +241,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
               )}
             </View>
           </View>
+          {mediaType ? <MediaTypeBadge type={mediaType} /> : null}
         </View>
       </View>
     </FocusableCard>
