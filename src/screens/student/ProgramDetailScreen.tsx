@@ -30,7 +30,7 @@ import {
   resolveVimeoUrl,
   fetchVimeoThumbnail,
 } from '../../utils/resolveVimeoUrl';
-import { openContent } from '../../utils/openContent';
+import { openContent, isSupportedContent } from '../../utils/openContent';
 import { getMediaType } from '../../utils/getMediaType';
 
 type ProgramDetailRouteProp = RouteProp<StudentStackParamList, 'ProgramDetail'>;
@@ -209,7 +209,11 @@ const ProgramDetailScreen: React.FC = () => {
           await fetchStudyContent({ programIds: [id] });
         }
         const { contentItems } = useStudyStore.getState();
-        setProgramContent(contentItems);
+        // Hide unsupported content (currently YouTube; PDFs during the
+        // backend rasterization transition). isSupportedContent drops items
+        // whose contentLink classifies as 'unknown' so they never appear in
+        // any tier or hero slot.
+        setProgramContent(contentItems.filter(isSupportedContent));
       } catch (err) {
         console.error('Failed to load program content', err);
       } finally {

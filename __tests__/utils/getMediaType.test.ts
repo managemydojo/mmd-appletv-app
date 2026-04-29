@@ -14,17 +14,6 @@ describe('getMediaType', () => {
     });
   });
 
-  describe('PDF URLs', () => {
-    it.each([
-      ['https://example.com/doc.pdf'],
-      ['https://example.com/doc.PDF'],
-      ['https://example.com/doc.pdf?token=abc'],
-      ['https://example.com/path/with.dots/doc.pdf'],
-    ])('classifies %s as pdf', url => {
-      expect(getMediaType(url)).toBe('pdf');
-    });
-  });
-
   describe('image URLs', () => {
     it.each([
       ['https://example.com/x.jpg'],
@@ -47,6 +36,10 @@ describe('getMediaType', () => {
       ['https://example.com/file.txt'],
       ['https://example.com/no-extension'],
       ['https://example.com/file.docx'],
+      // PDFs are now rasterized to image sequences server-side; the
+      // TV app no longer recognizes .pdf URLs as a media type.
+      ['https://example.com/doc.pdf'],
+      ['https://example.com/doc.PDF'],
     ])('classifies %s as unknown', url => {
       expect(getMediaType(url as string | null | undefined)).toBe('unknown');
     });

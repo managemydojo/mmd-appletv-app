@@ -1,4 +1,4 @@
-export type MediaType = 'video' | 'pdf' | 'image' | 'unknown';
+export type MediaType = 'video' | 'image' | 'unknown';
 
 export function getMediaType(url?: string | null): MediaType {
   if (!url) return 'unknown';
@@ -14,7 +14,6 @@ export function getMediaType(url?: string | null): MediaType {
   }
 
   const ext = lower.split('?')[0].split('.').pop();
-  if (ext === 'pdf') return 'pdf';
   if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
     return 'image';
   }

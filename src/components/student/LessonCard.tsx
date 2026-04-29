@@ -31,7 +31,7 @@ interface LessonCardProps {
   onPress?: () => void;
   width?: number;
   height?: number;
-  /** Media kind — when 'pdf' or 'image', a corner badge is rendered. */
+  /** Media kind — when 'image', a corner badge is rendered. */
   mediaType?: MediaType;
 }
 

@@ -25,7 +25,7 @@ import SearchIcon from '../../../assets/icons/search-icon.svg';
 import { studyService } from '../../services/studyService';
 import { StudyContentItem } from '../../types/study';
 import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
-import { openContent } from '../../utils/openContent';
+import { openContent, isSupportedContent } from '../../utils/openContent';
 import { getMediaType } from '../../utils/getMediaType';
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<
@@ -84,7 +84,8 @@ const SearchScreen = () => {
           const items = Array.isArray(response.data)
             ? response.data
             : response.data.items || [];
-          setAllData(items);
+          // Hide unsupported content (YouTube etc.) from search results.
+          setAllData(items.filter(isSupportedContent));
         } else {
           setError('Failed to load programs.');
         }
@@ -199,7 +200,7 @@ const SearchScreen = () => {
                     const items = Array.isArray(response.data)
                       ? response.data
                       : response.data.items || [];
-                    setAllData(items);
+                    setAllData(items.filter(isSupportedContent));
                   } else {
                     setError('Failed to load programs.');
                   }

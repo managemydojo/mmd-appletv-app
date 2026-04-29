@@ -9,7 +9,6 @@ interface MediaTypeBadgeProps {
 }
 
 const LABELS: Partial<Record<MediaType, string>> = {
-  pdf: 'PDF',
   image: 'IMG',
 };
 
