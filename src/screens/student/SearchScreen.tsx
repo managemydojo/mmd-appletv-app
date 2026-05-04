@@ -12,7 +12,7 @@ import { rs } from '../../theme/responsive';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StudentStackParamList } from '../../navigation';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 
 // Components
 import { ProgramCard } from '../../components/ui/ProgramCard';
@@ -45,7 +45,6 @@ const SearchScreen = () => {
   const [refsReady, setRefsReady] = React.useState(false);
   React.useEffect(() => setRefsReady(true), []);
 
-  const [submittedQuery, setSubmittedQuery] = useState('');
   const [iconFocused, setIconFocused] = useState(false);
   const [inputTVFocused, setInputTVFocused] = useState(false);
 
@@ -70,49 +69,57 @@ const SearchScreen = () => {
     return () => sub.remove();
   }, [navigation]);
 
-  useEffect(() => {
-    // Fetch original dataset on mount
-    const loadInitialData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await studyService.getStudyContentForContact({
-          limit: 500,
-          page: 1,
-          pagination: true,
-        });
-        if (response.success && response.data) {
-          const items = Array.isArray(response.data)
-            ? response.data
-            : response.data.items || [];
-          // Hide unsupported content (YouTube etc.) from search results.
-          setAllData(items.filter(isSupportedContent));
-        } else {
-          setError('Failed to load programs.');
-        }
-      } catch {
-        setError('An error occurred while loading data.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Watch the form's query value so an effect can react to keystrokes
+  // without waiting for onSubmitEditing.
+  const query = useWatch({ control, name: 'query' });
 
-    loadInitialData();
+  // Race-cancel: each fetch increments this ref; only the latest one
+  // is allowed to write to state. Stops a slow "can" response from
+  // overwriting a fast "cane" response.
+  const reqId = React.useRef(0);
+
+  const fetchResults = React.useCallback(async (q: string) => {
+    const myId = ++reqId.current;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = q
+        ? { search: q, limit: 100, page: 1, pagination: true }
+        : { limit: 500, page: 1, pagination: true };
+      const response = await studyService.getStudyContentForContact(params);
+      if (myId !== reqId.current) return;
+      if (response.success && response.data) {
+        const items = Array.isArray(response.data)
+          ? response.data
+          : response.data.items || [];
+        setAllData(items.filter(isSupportedContent));
+      } else {
+        setError('Failed to load programs.');
+      }
+    } catch {
+      if (myId === reqId.current) {
+        setError('An error occurred while loading data.');
+      }
+    } finally {
+      if (myId === reqId.current) setIsLoading(false);
+    }
   }, []);
 
-  // Filter locally based on the submitted query
-  const filteredData = React.useMemo(() => {
-    if (!submittedQuery) return allData;
-    const lowerQuery = submittedQuery.toLowerCase();
-    return allData.filter(
-      item =>
-        item.title?.toLowerCase().includes(lowerQuery) ||
-        item.category?.name?.toLowerCase().includes(lowerQuery),
-    );
-  }, [allData, submittedQuery]);
+  // Initial fetch + debounced re-fetch on query change.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetchResults((query ?? '').trim());
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, fetchResults]);
+
+  // For non-empty queries, the server already returned matches — no
+  // local filter. For empty queries, render the full cached set.
+  const filteredData = allData;
 
   const onSubmit = (data: SearchFormData) => {
-    setSubmittedQuery(data.query);
-    // This fires when "Done" is pressed on the tvOS keyboard due to onSubmitEditing
+    // Pressing Done forces an immediate (un-debounced) fetch.
+    fetchResults((data.query ?? '').trim());
   };
 
   const handlePlayContent = (item: StudyContentItem) => {
@@ -187,26 +194,7 @@ const SearchScreen = () => {
             message={error}
             variant="error"
             onRetry={() => {
-              setError(null);
-              setIsLoading(true);
-              studyService
-                .getStudyContentForContact({
-                  limit: 500,
-                  page: 1,
-                  pagination: true,
-                })
-                .then(response => {
-                  if (response.success && response.data) {
-                    const items = Array.isArray(response.data)
-                      ? response.data
-                      : response.data.items || [];
-                    setAllData(items.filter(isSupportedContent));
-                  } else {
-                    setError('Failed to load programs.');
-                  }
-                })
-                .catch(() => setError('An error occurred while loading data.'))
-                .finally(() => setIsLoading(false));
+              fetchResults((query ?? '').trim());
             }}
             onGoBack={() => navigation.goBack()}
           />

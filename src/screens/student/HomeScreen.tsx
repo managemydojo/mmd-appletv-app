@@ -29,6 +29,7 @@ import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
 import { openContent } from '../../utils/openContent';
 import { getMediaType } from '../../utils/getMediaType';
 import { resolveStudentThumbnail } from '../../data/studentThumbnails';
+import { sortByName } from '../../utils/sortByName';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   StudentStackParamList,
@@ -70,6 +71,12 @@ const HomeScreen: React.FC = () => {
       .filter(Boolean)
       .slice(0, 10) as StudyContentItem[];
   }, [history, contentItems]);
+
+  const sortedPrograms = React.useMemo(() => sortByName(programs), [programs]);
+  const sortedTrainingAreas = React.useMemo(
+    () => sortByName(trainingAreas),
+    [trainingAreas],
+  );
 
   // Fetch Vimeo thumbnails for items with no stripeImage
   const vimeoThumbnails = useVimeoThumbnails(recentlyWatched);
@@ -186,7 +193,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.contentSection}>
           <HorizontalRow
             title="Programs"
-            data={programs}
+            data={sortedPrograms}
             loading={loadingPrograms}
             emptyMessage="No programs available"
             keyExtractor={(item: StudyProgram) => item._id}
@@ -216,7 +223,7 @@ const HomeScreen: React.FC = () => {
 
           <HorizontalRow
             title="Training Area"
-            data={trainingAreas}
+            data={sortedTrainingAreas}
             loading={loadingTrainingAreas}
             emptyMessage="No training areas available"
             keyExtractor={(item: StudyCategory) => item._id}

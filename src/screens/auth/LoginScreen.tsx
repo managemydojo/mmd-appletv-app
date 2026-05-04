@@ -61,8 +61,8 @@ export default function LoginScreen({ navigation }: Props) {
                 placeholder=""
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="username"
-                autoComplete="username"
+                textContentType="none"
+                autoComplete="off"
                 keyboardType="default"
                 returnKeyType="next"
                 style={styles.input}

@@ -23,7 +23,11 @@ import FileIcon from '../../../assets/icons/file.svg';
 import { useStudyStore } from '../../store/useStudyStore';
 import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
 import { useStudentSettingsStore } from '../../store/useStudentSettingsStore';
-import { StudyContentItem, StudySubCategory } from '../../types/study';
+import {
+  StudyContentItem,
+  StudyProgram,
+  StudySubCategory,
+} from '../../types/study';
 import { useVimeoThumbnails } from '../../hooks/useVimeoThumbnails';
 import Video from 'react-native-video';
 import {
@@ -32,6 +36,8 @@ import {
 } from '../../utils/resolveVimeoUrl';
 import { openContent, isSupportedContent } from '../../utils/openContent';
 import { getMediaType } from '../../utils/getMediaType';
+import { sortByName } from '../../utils/sortByName';
+import { studyService } from '../../services/studyService';
 
 type ProgramDetailRouteProp = RouteProp<StudentStackParamList, 'ProgramDetail'>;
 type ProgramDetailNavigationProp = NativeStackNavigationProp<
@@ -61,6 +67,12 @@ const ProgramDetailScreen: React.FC = () => {
   >([]);
   const vimeoThumbnails = useVimeoThumbnails(programContent);
   const [loading, setLoading] = React.useState(true);
+
+  // Set of program IDs that have at least one supported content item
+  // for *this* category. `null` while the pre-fetch is in flight (so we
+  // don't flash an empty state mid-fetch); a Set after it resolves.
+  const [programIdsWithContent, setProgramIdsWithContent] =
+    React.useState<Set<string> | null>(null);
 
   // Hero preview state
   const [heroThumb, setHeroThumb] = React.useState<string | null>(null);
@@ -125,6 +137,45 @@ const ProgramDetailScreen: React.FC = () => {
     loadHistory();
   }, [loadHistory]);
 
+  // Pre-fetch every supported content item for this category, then
+  // derive the set of programs that actually have at least one item.
+  // Used to hide empty program chips and default to the first non-empty
+  // program. Skips entirely for type === 'program'.
+  React.useEffect(() => {
+    if (type !== 'category') {
+      setProgramIdsWithContent(null);
+      return;
+    }
+    let cancelled = false;
+    studyService
+      .getStudyContentForContact({
+        categoryIds: [id],
+        withoutPagination: true,
+      })
+      .then(response => {
+        if (cancelled) return;
+        if (!response.success || !response.data) {
+          setProgramIdsWithContent(new Set());
+          return;
+        }
+        const raw = Array.isArray(response.data)
+          ? response.data
+          : response.data.items || [];
+        const items = raw.filter(isSupportedContent);
+        const ids = new Set<string>();
+        items.forEach(it => {
+          (it.programs ?? []).forEach((p: StudyProgram) => ids.add(p._id));
+        });
+        setProgramIdsWithContent(ids);
+      })
+      .catch(() => {
+        if (!cancelled) setProgramIdsWithContent(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, type]);
+
   // Spatial-navigation handles. Using callback refs + findNodeHandle so the
   // numeric reactTag is captured the moment the view attaches — avoids
   // timing races where .current isn't populated when a sibling re-renders.
@@ -159,7 +210,7 @@ const ProgramDetailScreen: React.FC = () => {
   // Default to the first program if viewing a category
   const [selectedProgramId, setSelectedProgramId] = React.useState<
     string | null
-  >(type === 'category' && programs.length > 0 ? programs[0]._id : null);
+  >(null);
 
   // Resolve display name from the relevant store list
   const displayName = React.useMemo(() => {
@@ -180,12 +231,31 @@ const ProgramDetailScreen: React.FC = () => {
     return [];
   }, [type, id, subCategories]);
 
-  // Make sure we have a selected program if programs lazy-load or update
+  // Programs that survive the empty-content filter, sorted alphabetically.
+  // While the pre-fetch is in flight (programIdsWithContent === null),
+  // we render no chips to avoid flashing chips that may immediately
+  // disappear once the set resolves.
+  const programsWithContent = React.useMemo(() => {
+    if (programIdsWithContent === null) return [];
+    return sortByName(programs.filter(p => programIdsWithContent.has(p._id)));
+  }, [programs, programIdsWithContent]);
+
+  // Default-select the first program that has content for this category.
+  // Runs once the pre-fetch resolves AND any time the visible list
+  // changes (e.g. programs reload mid-session).
   React.useEffect(() => {
-    if (type === 'category' && programs.length > 0 && !selectedProgramId) {
-      setSelectedProgramId(programs[0]._id);
+    if (type !== 'category') return;
+    if (programsWithContent.length === 0) {
+      setSelectedProgramId(null);
+      return;
     }
-  }, [type, programs, selectedProgramId]);
+    if (
+      !selectedProgramId ||
+      !programsWithContent.some(p => p._id === selectedProgramId)
+    ) {
+      setSelectedProgramId(programsWithContent[0]._id);
+    }
+  }, [type, programsWithContent, selectedProgramId]);
 
   React.useEffect(() => {
     const loadContent = async () => {
@@ -440,7 +510,7 @@ const ProgramDetailScreen: React.FC = () => {
   );
 
   const renderProgramChips = () => {
-    if (type !== 'category' || programs.length === 0) return null;
+    if (type !== 'category' || programsWithContent.length === 0) return null;
 
     // When the hero is hidden (empty state), chips are the first focusable
     // row in the ScrollView — wire UP to the header back button so users
@@ -454,7 +524,7 @@ const ProgramDetailScreen: React.FC = () => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chipsContainer}
         >
-          {programs.map((program, index) => {
+          {programsWithContent.map((program, index) => {
             const isSelected = program._id === selectedProgramId;
             return (
               <Pressable

@@ -5,26 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   TVFocusGuideView,
+  Animated,
 } from 'react-native';
 import { useTheme } from '../../theme';
 import { rs } from '../../theme/responsive';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import SearchIcon from '../../../assets/icons/search-icon.svg';
-
-// Shared glass background (matches Figma)
-const GLASS_BG = 'rgba(20, 20, 20, 0.6)';
-const GLASS_BORDER = 'rgba(255, 255, 255, 0.1)';
-// Mirrors theme.colors.primary — kept as a constant so it can be referenced
-// from styles defined outside the component.
-const FOCUS_BLUE = '#4A90E2';
-// Tint for focused (non-active) items — kept light (~30%) so the blue
-// border carries the focus signal cleanly without competing with it.
-// The previous 50% tint felt heavy and washed out the border.
-const FOCUS_BLUE_TINT = 'rgba(74,144,226,0.3)';
-// Soft drop-shadow color for focused items — gives a subtle "lift" effect
-// for tvOS-native focus depth. Matches the blue accent.
-const FOCUS_GLOW = 'rgba(74,144,226,0.6)';
+import Logo from '../../../assets/icons/logo.svg';
 
 interface HomeHeaderProps {
   onTabChange?: (tab: 'Curriculum' | 'Announcements') => void;
@@ -40,7 +28,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   curriculumTabRef,
   announcementsTabRef,
 }) => {
-  useTheme();
+  const { theme } = useTheme();
   const navigation =
     useNavigation<
       NativeStackNavigationProp<Record<string, object | undefined>>
@@ -52,6 +40,37 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   >(null);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [settingsFocused, setSettingsFocused] = React.useState(false);
+
+  // Each tab has its own driver. 0 = underline hidden (transparent +
+  // collapsed), 1 = underline showing (full color + full width). The
+  // value drives BOTH opacity and scaleX so the underline appears to
+  // grow from the center as it fades in.
+  //
+  // useState with a lazy initializer is used (not useRef) so the
+  // Animated.Value is constructed exactly once on mount. With useRef
+  // the `new Animated.Value(...)` expression runs every render and
+  // throws the result away — wasted allocations.
+  const [curriculumUnderline] = React.useState(
+    () => new Animated.Value(activeTab === 'Curriculum' ? 1 : 0),
+  );
+  const [announcementsUnderline] = React.useState(
+    () => new Animated.Value(activeTab === 'Announcements' ? 1 : 0),
+  );
+
+  React.useEffect(() => {
+    Animated.timing(curriculumUnderline, {
+      toValue:
+        activeTab === 'Curriculum' || focusedTab === 'Curriculum' ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(announcementsUnderline, {
+      toValue:
+        activeTab === 'Announcements' || focusedTab === 'Announcements' ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, focusedTab, curriculumUnderline, announcementsUnderline]);
 
   const handleSearchPress = () => {
     if (route.name === 'Search') {
@@ -69,122 +88,116 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
     navigation.navigate('Settings');
   };
 
+  /**
+   * Render a tab. Text is always full white — no dimming. Underline
+   * color tells the rest of the story:
+   *   - focused (cursor is here)        -> white
+   *   - active and not focused          -> primary blue
+   *   - idle inactive                   -> transparent (still rendered
+   *                                        to keep tab height stable)
+   *
+   * No background tint, no border ring. Underline is a child View at
+   * the bottom of the tab so its color can flip independent of the
+   * tab's own bare treatment.
+   */
+  const renderTab = (
+    label: 'Curriculum' | 'Announcements',
+    tabRef: React.Ref<any> | undefined,
+    driver: Animated.Value,
+  ) => {
+    const isActive = activeTab === label;
+    const isFocused = focusedTab === label;
+    const underlineColor = isFocused
+      ? theme.colors.text
+      : isActive
+      ? theme.colors.primary
+      : 'transparent';
+
+    return (
+      <TouchableOpacity
+        ref={tabRef}
+        onPress={() => handleTabPress(label)}
+        onFocus={() => setFocusedTab(label)}
+        onBlur={() => setFocusedTab(prev => (prev === label ? null : prev))}
+        // TouchableOpacity defaults to activeOpacity=0.2 which dims the
+        // children during press AND on some tvOS focus paths. Force it
+        // to 1 so the text stays at full white in every state.
+        activeOpacity={1}
+        style={styles.tab}
+      >
+        <Text style={styles.tabText}>{label}</Text>
+        <Animated.View
+          style={[
+            styles.underline,
+            {
+              backgroundColor: underlineColor,
+              opacity: driver,
+              transform: [{ scaleX: driver }],
+            },
+          ]}
+        />
+      </TouchableOpacity>
+    );
+  };
+
+  const isSearchFocused = searchFocused || route.name === 'Search';
+
   return (
     <TVFocusGuideView autoFocus style={styles.container}>
       <View style={styles.contentContainer}>
-        {/* ── Navigation Pill ── */}
-        <View style={styles.pillContainer}>
-          {/* Search Button — inside pill */}
-          <TouchableOpacity
-            onPress={handleSearchPress}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            style={[
-              styles.searchButton,
-              (searchFocused || route.name === 'Search') &&
-                styles.focusedSearch,
-            ]}
-          >
-            <SearchIcon width={rs(24)} height={rs(24)} color="white" />
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.divider} />
-
-          {/* Curriculum Tab */}
-          <TouchableOpacity
-            ref={curriculumTabRef}
-            onPress={() => handleTabPress('Curriculum')}
-            onFocus={() => setFocusedTab('Curriculum')}
-            // Guard blur: only clear if we're still the focused tab. Prevents
-            // a stale onBlur firing AFTER the sibling's onFocus from wiping
-            // out the new focus state (tvOS does not guarantee onBlur runs
-            // before the next onFocus — see Curriculum → Announcements bug).
-            onBlur={() =>
-              setFocusedTab(prev => (prev === 'Curriculum' ? null : prev))
-            }
-            style={[
-              styles.tab,
-              activeTab === 'Curriculum' && styles.activeTab,
-              focusedTab === 'Curriculum' &&
-                activeTab !== 'Curriculum' &&
-                styles.focusedItem,
-              focusedTab === 'Curriculum' &&
-                activeTab === 'Curriculum' &&
-                styles.activeFocusedTab,
-            ]}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === 'Curriculum'
-                  ? styles.activeTabText
-                  : styles.inactiveTabText,
-                focusedTab === 'Curriculum' && styles.focusedItemText,
-              ]}
-            >
-              Curriculum
-            </Text>
-          </TouchableOpacity>
-
-          {/* Announcements Tab */}
-          <TouchableOpacity
-            ref={announcementsTabRef}
-            onPress={() => handleTabPress('Announcements')}
-            onFocus={() => setFocusedTab('Announcements')}
-            // Same guard as Curriculum — see note above.
-            onBlur={() =>
-              setFocusedTab(prev => (prev === 'Announcements' ? null : prev))
-            }
-            style={[
-              styles.tab,
-              activeTab === 'Announcements' && styles.activeTab,
-              focusedTab === 'Announcements' &&
-                activeTab !== 'Announcements' &&
-                styles.focusedItem,
-              focusedTab === 'Announcements' &&
-                activeTab === 'Announcements' &&
-                styles.activeFocusedTab,
-            ]}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === 'Announcements'
-                  ? styles.activeTabText
-                  : styles.inactiveTabText,
-                focusedTab === 'Announcements' && styles.focusedItemText,
-              ]}
-            >
-              Announcements
-            </Text>
-          </TouchableOpacity>
+        {/* Brand mark — non-interactive */}
+        <View style={styles.logoContainer} accessibilityElementsHidden>
+          <Logo width={rs(56)} height={rs(56)} />
         </View>
 
-        {/* ── Settings Button — navigates to StudentSettingsScreen.
-             Replaces the previous profile dropdown (logout now lives inside
-             Settings, matching the Dojo Cast pattern). ── */}
-        <View style={styles.settingsArea}>
-          <TouchableOpacity
-            onPress={handleSettingsPress}
-            onFocus={() => setSettingsFocused(true)}
-            onBlur={() => setSettingsFocused(false)}
+        {/* Search — standalone, no pill. White-outline focus to match
+            the rest of the app's focus language. */}
+        <TouchableOpacity
+          onPress={handleSearchPress}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
+          activeOpacity={1}
+          style={[
+            styles.searchButton,
+            isSearchFocused && styles.searchButtonFocused,
+          ]}
+        >
+          <SearchIcon width={rs(28)} height={rs(28)} color="white" />
+        </TouchableOpacity>
+
+        {/* Tabs */}
+        {renderTab('Curriculum', curriculumTabRef, curriculumUnderline)}
+        {renderTab(
+          'Announcements',
+          announcementsTabRef,
+          announcementsUnderline,
+        )}
+
+        {/* Spacer pushes settings to the far right */}
+        <View style={{ flex: 1 }} />
+
+        {/* Settings — white-outline focus, matches search and the
+            DojoCastSetup focus language. */}
+        <TouchableOpacity
+          onPress={handleSettingsPress}
+          onFocus={() => setSettingsFocused(true)}
+          onBlur={() => setSettingsFocused(false)}
+          activeOpacity={1}
+          style={[
+            styles.settingsBtn,
+            settingsFocused && styles.settingsBtnFocused,
+          ]}
+          accessibilityLabel="Settings"
+        >
+          <Text
             style={[
-              styles.settingsBtn,
-              settingsFocused && styles.settingsBtnFocused,
+              styles.settingsIcon,
+              settingsFocused && { color: theme.colors.text },
             ]}
-            accessibilityLabel="Settings"
           >
-            <Text
-              style={[
-                styles.settingsIcon,
-                settingsFocused && styles.settingsIconFocused,
-              ]}
-            >
-              {'\u2699'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {'⚙'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </TVFocusGuideView>
   );
@@ -193,36 +206,24 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingTop: rs(30),
+    paddingTop: rs(40),
     paddingHorizontal: rs(60),
-    paddingBottom: rs(10),
+    paddingBottom: rs(24),
     zIndex: 20,
   },
   contentContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: rs(28),
   },
-
-  // ── Pill ──
-  pillContainer: {
-    flex: 1,
-    flexDirection: 'row',
+  logoContainer: {
+    width: rs(64),
+    height: rs(64),
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    backgroundColor: GLASS_BG,
-    borderRadius: rs(50),
-    paddingVertical: rs(10),
-    paddingHorizontal: rs(30),
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    marginRight: rs(16),
   },
-  divider: {
-    width: 1,
-    height: rs(32),
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: rs(16),
-  },
+  // Search button: constant 3px transparent border so the swap to a
+  // white border on focus doesn't shift layout by 1-2 pixels.
   searchButton: {
     width: rs(50),
     height: rs(50),
@@ -233,89 +234,51 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'transparent',
   },
-  focusedSearch: {
-    borderWidth: 3,
-    borderColor: FOCUS_BLUE,
-    backgroundColor: FOCUS_BLUE_TINT,
-    transform: [{ scale: 1.1 }],
-    shadowColor: FOCUS_GLOW,
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
-  },
-  // Tabs — hug content with padding. 3px transparent border keeps layout
-  // stable when the focused state swaps to a colored border.
-  tab: {
-    paddingVertical: rs(16),
-    paddingHorizontal: rs(40),
-    borderRadius: rs(40),
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  activeTab: {
-    backgroundColor: FOCUS_BLUE,
-  },
-  // Active tab + focused — bright white ring on top of the blue fill so it
-  // stands out clearly against the blue.
-  // NOTE: No transform/scale here — scaling a tab inside the pill shifts its
-  // visual bounds and confuses the tvOS spatial-navigation engine when
-  // navigating between adjacent sibling tabs (e.g. Curriculum → Announcements).
-  activeFocusedTab: {
+  searchButtonFocused: {
     borderColor: '#FFFFFF',
   },
-  // Inactive tab focused — strong blue ring + tinted background.
-  // Same reasoning: no scale transform on sibling tabs.
-  focusedItem: {
-    backgroundColor: FOCUS_BLUE_TINT,
-    borderColor: FOCUS_BLUE,
+  // Tabs are text + an underline strip. No background, no border ring.
+  // Focus and active both show up as a white underline.
+  tab: {
+    paddingVertical: rs(10),
+    paddingHorizontal: rs(20),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  focusedItemText: {
-    color: '#FFFFFF',
-  },
+  // All tabs share the same weight + color. Active vs inactive is
+  // shown ONLY via the underline color — the text itself never dims,
+  // never thins, never changes between states.
   tabText: {
-    fontSize: rs(22),
-    fontWeight: '500',
+    fontSize: rs(24),
+    paddingVertical: rs(2),
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
-  activeTabText: {
-    color: 'white',
-    fontWeight: 'bold',
+  underline: {
+    // Constant height keeps the tab's outer dimensions fixed whether
+    // the underline is colored or transparent.
+    height: rs(3),
+    width: '100%',
+    marginTop: rs(4),
+    borderRadius: rs(2),
   },
-  inactiveTabText: {
-    color: 'rgba(255,255,255,0.7)',
-  },
-
-  // ── Settings ──
-  settingsArea: {
-    alignItems: 'flex-end',
-    zIndex: 50,
-  },
+  // Settings button: same constant-border-width discipline as search.
   settingsBtn: {
     width: rs(64),
     height: rs(64),
     borderRadius: rs(14),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: GLASS_BG,
+    backgroundColor: 'rgba(20, 20, 20, 0.6)',
     borderWidth: 3,
-    borderColor: GLASS_BORDER,
+    borderColor: 'transparent',
     flexShrink: 0,
   },
   settingsBtnFocused: {
-    backgroundColor: FOCUS_BLUE_TINT,
-    borderColor: FOCUS_BLUE,
-    transform: [{ scale: 1.08 }],
-    shadowColor: FOCUS_GLOW,
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
+    borderColor: '#FFFFFF',
   },
   settingsIcon: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: rs(32),
-  },
-  settingsIconFocused: {
-    color: '#FFFFFF',
   },
 });
