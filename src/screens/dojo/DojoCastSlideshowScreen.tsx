@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   View,
   Text,
@@ -7,6 +13,8 @@ import {
   TVFocusGuideView,
   ActivityIndicator,
   Dimensions,
+  Animated,
+  useTVEventHandler,
 } from 'react-native';
 
 // TV screen dimensions are fixed (Apple TV is always landscape 1920×1080).
@@ -54,7 +62,38 @@ const DojoCastSlideshowScreen = () => {
   }, [playlist, selectedDeckId]);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const controlsOpacity = useRef(new Animated.Value(1)).current;
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slidesLengthRef = useRef(sortedSlides.length);
+  // Slide-area width in pre-rotation space. For 90°/270° the rotated viewport
+  // is SCREEN_H wide, so starting the push from SCREEN_W (1920) leaves the
+  // first 840px of travel off-screen and the transition looks like it never
+  // happens. Use the actual slide-area width per rotation.
+  const slideAreaWidth =
+    rotation === 90 || rotation === 270 ? SCREEN_H : SCREEN_W;
+  const slideInX = useRef(new Animated.Value(slideAreaWidth)).current;
+  const [backUrl, setBackUrl] = useState<string | null>(null);
+  const backUrlRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const playPauseRef = useRef<any>(null);
+  // Direction is set by whoever triggers a slide change (handler or auto-
+  // advance) BEFORE calling next/prevSlide. The animation effect reads it
+  // when currentImageUrl changes to pick which side the new slide enters
+  // from (right for forward, left for backward).
+  const directionRef = useRef<'forward' | 'backward'>('forward');
+  // Bumped on every manual button press. Adding this to the auto-advance
+  // effect's deps makes the interval restart from zero on each press —
+  // otherwise a queued auto-advance fires shortly after a manual press
+  // and looks like a runaway double/triple transition.
+  const [autoAdvanceTick, setAutoAdvanceTick] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     slidesLengthRef.current = sortedSlides.length;
@@ -79,6 +118,10 @@ const DojoCastSlideshowScreen = () => {
     () => (currentImageUrl ? { uri: currentImageUrl } : null),
     [currentImageUrl],
   );
+  const backImageSource = useMemo(
+    () => (backUrl ? { uri: backUrl } : null),
+    [backUrl],
+  );
   const handleImageLoad = useCallback(() => {
     // onLoad is a no-op now that onError no longer drives advancement.
     // Kept as a stable callback prop so FastImage's updateProps doesn't churn.
@@ -93,6 +136,36 @@ const DojoCastSlideshowScreen = () => {
     // autoplay timer advances past them naturally. If network is fully down,
     // the operator can press Back / Change Program.
   }, []);
+
+  const scheduleFadeOut = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    hideTimerRef.current = setTimeout(() => {
+      Animated.timing(controlsOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setControlsVisible(false);
+      });
+    }, 3000);
+  }, [controlsOpacity]);
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    Animated.timing(controlsOpacity, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+    scheduleFadeOut();
+  }, [controlsOpacity, scheduleFadeOut]);
+
+  const resetHideTimer = useCallback(() => {
+    scheduleFadeOut();
+  }, [scheduleFadeOut]);
 
   // Rotated viewport geometry.
   //
@@ -122,16 +195,88 @@ const DojoCastSlideshowScreen = () => {
     };
   }, [rotation]);
 
-  // Start playing on mount
+  useEffect(() => {
+    if (!currentImageUrl) return;
+
+    if (backUrlRef.current === null) {
+      // First slide — show immediately, no animation
+      backUrlRef.current = currentImageUrl;
+      setBackUrl(currentImageUrl);
+      slideInX.setValue(slideAreaWidth);
+      return;
+    }
+
+    if (currentImageUrl === backUrlRef.current) return;
+
+    // Stop any in-flight animation before starting a new one
+    if (animationRef.current) {
+      animationRef.current.stop();
+      animationRef.current = null;
+    }
+
+    // Push the new slide in over the old one. Direction is set by the
+    // caller: forward = enter from right, backward = enter from left.
+    const startX =
+      directionRef.current === 'backward' ? -slideAreaWidth : slideAreaWidth;
+    slideInX.setValue(startX);
+    animationRef.current = Animated.timing(slideInX, {
+      toValue: 0,
+      duration: 450,
+      useNativeDriver: true,
+    });
+    animationRef.current.start(({ finished }) => {
+      animationRef.current = null;
+      if (finished && mountedRef.current) {
+        // Swap layers: back takes the new URL, front parks off-screen
+        // (any side — it's invisible until next animation re-positions it).
+        backUrlRef.current = currentImageUrl;
+        setBackUrl(currentImageUrl);
+        requestAnimationFrame(() => {
+          slideInX.setValue(slideAreaWidth);
+        });
+      }
+    });
+  }, [currentImageUrl, slideInX, slideAreaWidth]);
+
+  // Start playing on mount; schedule the initial auto-hide after 3s
   useEffect(() => {
     setPlaying(true);
+    scheduleFadeOut();
     return () => {
       setPlaying(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPlaying]);
+
+  // Programmatically focus the play/pause button on mount.
+  // hasTVPreferredFocus alone is unreliable when the button is inside
+  // an Animated.View — a short delay lets the layout settle first.
+  // tvOS Pressable exposes `requestTVFocus`, not `.focus()`.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      playPauseRef.current?.requestTVFocus?.();
+    }, 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Any remote key press (arrow / select / play-pause) re-shows the
+  // controls bar. Without this, once the bar fades out and pointerEvents
+  // becomes 'none', focus is lost — and the buttons can't catch the
+  // next key press themselves.
+  useTVEventHandler(evt => {
+    const type = evt?.eventType;
+    if (!type || type === 'focus' || type === 'blur') return;
+    showControls();
+    // After the bar reappears, restore focus to the play/pause button so
+    // the next key press lands on a known target.
+    if (!controlsVisible) {
+      setTimeout(() => {
+        playPauseRef.current?.requestTVFocus?.();
+      }, 50);
+    }
+  });
 
   // Auto-advance slides. No transition animation — slides swap instantly
   // on URI change (stock <Image> + S3 cache). A 400ms double-fade was
@@ -142,7 +287,11 @@ const DojoCastSlideshowScreen = () => {
     if (isPlaying && autoAdvance) {
       timerRef.current = setInterval(() => {
         const total = slidesLengthRef.current;
-        if (total > 0) nextSlide(total);
+        if (total > 0) {
+          directionRef.current = 'forward';
+          nextSlide(total);
+        }
+        resetHideTimer();
       }, slideDuration * 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -153,22 +302,42 @@ const DojoCastSlideshowScreen = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [isPlaying, autoAdvance, slideDuration, nextSlide]);
+    // autoAdvanceTick — bumped on every manual press — restarts the
+    // interval so the next auto-advance is a full slideDuration away,
+    // never moments after a manual press.
+  }, [
+    isPlaying,
+    autoAdvance,
+    slideDuration,
+    nextSlide,
+    resetHideTimer,
+    autoAdvanceTick,
+  ]);
 
   const handlePlayPause = () => {
     setPlaying(!isPlaying);
+    showControls();
+    // Reset auto-advance interval — pausing/resuming should also count
+    // as the start of a fresh countdown.
+    setAutoAdvanceTick(t => t + 1);
   };
 
   const handleNext = () => {
     if (slidesLengthRef.current > 0) {
+      directionRef.current = 'forward';
       nextSlide(slidesLengthRef.current);
     }
+    showControls();
+    setAutoAdvanceTick(t => t + 1);
   };
 
   const handlePrev = () => {
     if (slidesLengthRef.current > 0) {
+      directionRef.current = 'backward';
       prevSlide(slidesLengthRef.current);
     }
+    showControls();
+    setAutoAdvanceTick(t => t + 1);
   };
 
   const handleResume = () => {
@@ -228,11 +397,11 @@ const DojoCastSlideshowScreen = () => {
                applies to the whole tree regardless of per-path fills. */}
             <Logo width={rs(280)} height={rs(280)} opacity={0.04} />
           </View>
-          {imageSource ? (
+          {backImageSource ? (
             <FastImage
-              source={imageSource}
+              source={backImageSource}
               style={StyleSheet.absoluteFill}
-              resizeMode={FastImage.resizeMode.contain}
+              resizeMode={FastImage.resizeMode.cover}
               onLoad={handleImageLoad}
               onError={handleImageError}
             />
@@ -240,6 +409,22 @@ const DojoCastSlideshowScreen = () => {
             <View style={[StyleSheet.absoluteFill, styles.slidePlaceholder]}>
               <Text style={styles.slidePlaceholderText}>No slide</Text>
             </View>
+          )}
+          {imageSource && (
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                { transform: [{ translateX: slideInX }] },
+              ]}
+            >
+              <FastImage
+                source={imageSource}
+                style={StyleSheet.absoluteFill}
+                resizeMode={FastImage.resizeMode.cover}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+              />
+            </Animated.View>
           )}
         </View>
 
@@ -296,83 +481,93 @@ const DojoCastSlideshowScreen = () => {
         {/* NOTE: dropped `autoFocus` on this guide view — it re-asserted after
             re-renders (every slide change), causing focus to jump back to the
             center button. First FocusableCard still receives focus on mount. */}
-        <TVFocusGuideView style={styles.controlsBar}>
-          <View style={styles.controlsCenter}>
-            {/* Previous — reuses next.png flipped horizontally because the
-                repo's prev.png is literally a copy of next.png. Replace with a
-                proper prev asset when available and remove the transform. */}
-            <FocusableCard
-              onPress={handlePrev}
-              style={styles.controlButton}
-              focusedStyle={styles.controlButtonFocused}
-              wrapperStyle={{
-                flex: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-              scaleOnFocus={true}
-            >
-              {() => (
-                <Image
-                  source={require('../../../assets/icons/next.png')}
-                  style={[styles.controlIcon, { transform: [{ scaleX: -1 }] }]}
-                />
-              )}
-            </FocusableCard>
-
-            {/* Play / Pause */}
-            <FocusableCard
-              onPress={handlePlayPause}
-              style={styles.playButton}
-              focusedStyle={styles.playButtonFocused}
-              wrapperStyle={{
-                flex: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-              scaleOnFocus={true}
-            >
-              {() =>
-                isPlaying ? (
+        <Animated.View
+          pointerEvents={controlsVisible ? 'auto' : 'none'}
+          style={[styles.controlsBarOuter, { opacity: controlsOpacity }]}
+        >
+          <TVFocusGuideView style={styles.controlsBar}>
+            <View style={styles.controlsCenter}>
+              {/* Previous — reuses next.png flipped horizontally because the
+                  repo's prev.png is literally a copy of next.png. Replace with a
+                  proper prev asset when available and remove the transform. */}
+              <FocusableCard
+                onPress={handlePrev}
+                style={styles.controlButton}
+                focusedStyle={styles.controlButtonFocused}
+                wrapperStyle={{
+                  flex: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                scaleOnFocus={true}
+              >
+                {() => (
                   <Image
-                    source={require('../../../assets/icons/pause.png')}
-                    style={styles.playIcon}
+                    source={require('../../../assets/icons/next.png')}
+                    style={[
+                      styles.controlIcon,
+                      { transform: [{ scaleX: -1 }] },
+                    ]}
                   />
-                ) : (
+                )}
+              </FocusableCard>
+
+              {/* Play / Pause */}
+              <FocusableCard
+                ref={playPauseRef}
+                onPress={handlePlayPause}
+                hasTVPreferredFocus={true}
+                style={styles.playButton}
+                focusedStyle={styles.playButtonFocused}
+                wrapperStyle={{
+                  flex: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                scaleOnFocus={true}
+              >
+                {() =>
+                  isPlaying ? (
+                    <Image
+                      source={require('../../../assets/icons/pause.png')}
+                      style={styles.playIcon}
+                    />
+                  ) : (
+                    <Image
+                      source={require('../../../assets/icons/play.png')}
+                      style={styles.playIcon}
+                    />
+                  )
+                }
+              </FocusableCard>
+
+              {/* Next */}
+              <FocusableCard
+                onPress={handleNext}
+                style={styles.controlButton}
+                focusedStyle={styles.controlButtonFocused}
+                wrapperStyle={{
+                  flex: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                scaleOnFocus={true}
+              >
+                {() => (
                   <Image
-                    source={require('../../../assets/icons/play.png')}
-                    style={styles.playIcon}
+                    source={require('../../../assets/icons/next.png')}
+                    style={styles.controlIcon}
                   />
-                )
-              }
-            </FocusableCard>
+                )}
+              </FocusableCard>
+            </View>
 
-            {/* Next */}
-            <FocusableCard
-              onPress={handleNext}
-              style={styles.controlButton}
-              focusedStyle={styles.controlButtonFocused}
-              wrapperStyle={{
-                flex: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-              scaleOnFocus={true}
-            >
-              {() => (
-                <Image
-                  source={require('../../../assets/icons/next.png')}
-                  style={styles.controlIcon}
-                />
-              )}
-            </FocusableCard>
-          </View>
-
-          {/* Dojo logo (bottom-right of the controls bar) */}
-          <View style={styles.logoContainer}>
-            <Logo width={rs(48)} height={rs(48)} fill="#FFFFFF" />
-          </View>
-        </TVFocusGuideView>
+            {/* Dojo logo (bottom-right of the controls bar) */}
+            <View style={styles.logoContainer}>
+              <Logo width={rs(48)} height={rs(48)} fill="#FFFFFF" />
+            </View>
+          </TVFocusGuideView>
+        </Animated.View>
       </View>
     </View>
   );
@@ -386,16 +581,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   // Slide area — stops above the controls bar so controls never overlap
-  // slide content. Branded navy fills any empty space from the
-  // `resizeMode: contain` letterbox, so it looks intentional instead of
-  // raw black on a portrait-mounted TV.
+  // slide content. Branded navy acts as a fallback backdrop for broken
+  // or missing slides.
   slideArea: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: CONTROLS_BAR_HEIGHT,
+    bottom: 0,
     backgroundColor: '#0F1729',
+    overflow: 'hidden',
   },
   // Centered dojo logo watermark inside the slide area. Low-opacity
   // so it reads as backdrop decoration, not a competing element.
@@ -473,18 +668,21 @@ const styles = StyleSheet.create({
   // ── Controls Bar ──
   // Absolute within the rotated viewport so it lands at the viewer's
   // "bottom" regardless of rotation.
-  controlsBar: {
+  controlsBarOuter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     height: CONTROLS_BAR_HEIGHT,
+    zIndex: 20,
+  },
+  controlsBar: {
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: rs(48),
-    zIndex: 20,
   },
   controlsCenter: {
     flexDirection: 'row',

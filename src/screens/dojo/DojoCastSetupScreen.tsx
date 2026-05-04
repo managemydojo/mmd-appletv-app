@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -32,7 +32,6 @@ const DojoCastSetupScreen = () => {
   const navigation = useNavigation<Nav>();
   const { selectDeck, selectedDeckId, setCurrentSlideIndex } =
     useDojoCastStore();
-  const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const dojoId = useAuthStore(s => selectDojoId(s.user));
   const {
     data: playlist,
@@ -135,7 +134,6 @@ const DojoCastSetupScreen = () => {
           >
             {decks.map(deck => {
               const isSelected = selectedDeckId === deck._id;
-              const isFocused = focusedCardId === deck._id;
               const thumb = deck.slides[0]?.thumbnailUrl;
               const sourceLabel =
                 deck.source === 'google_slides' ? 'Google Slides' : 'Canva';
@@ -144,24 +142,8 @@ const DojoCastSetupScreen = () => {
                 <FocusableCard
                   key={deck._id}
                   onPress={() => handleDeckSelect(deck._id)}
-                  onFocus={() => setFocusedCardId(deck._id)}
-                  onBlur={() =>
-                    setFocusedCardId(prev => (prev === deck._id ? null : prev))
-                  }
-                  style={[
-                    styles.programCard,
-                    {
-                      borderColor:
-                        isSelected || isFocused
-                          ? theme.colors.primary
-                          : 'rgba(100, 120, 180, 0.4)',
-                      borderWidth: isSelected || isFocused ? rs(3) : rs(2),
-                    },
-                  ]}
-                  focusedStyle={{
-                    borderColor: theme.colors.primary,
-                    borderWidth: rs(3),
-                  }}
+                  style={styles.programCard}
+                  focusedStyle={styles.programCardFocused}
                   wrapperStyle={{ flex: 1 }}
                   scaleOnFocus={true}
                 >
@@ -208,6 +190,16 @@ const DojoCastSetupScreen = () => {
                           </Text>
                         </View>
                       </View>
+                      {isSelected && (
+                        <View
+                          style={[
+                            styles.selectedBadge,
+                            { backgroundColor: theme.colors.primary },
+                          ]}
+                        >
+                          <Text style={styles.selectedBadgeText}>{'✓'}</Text>
+                        </View>
+                      )}
                     </View>
                   )}
                 </FocusableCard>
@@ -275,6 +267,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
+  // Constant border width on every focusable in this screen — focus
+  // changes the COLOR only, never the size, so nothing shifts when the
+  // user moves the cursor.
   settingsButton: {
     width: rs(60),
     height: rs(60),
@@ -282,11 +277,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: rs(3),
+    borderColor: 'transparent',
   },
   settingsButtonFocused: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderColor: '#FFFFFF',
-    borderWidth: 2,
   },
   settingsIcon: {
     fontSize: rs(32),
@@ -352,6 +348,34 @@ const styles = StyleSheet.create({
     borderRadius: rs(16),
     overflow: 'hidden',
     backgroundColor: 'rgba(12, 18, 36, 0.85)',
+    borderWidth: rs(3),
+    borderColor: 'rgba(100, 120, 180, 0.4)',
+  },
+  // Focus indicator — universal language across this screen. Selection is
+  // shown separately via the corner badge so a focused-but-unselected card
+  // is unambiguous, and a selected-but-unfocused card stays clearly marked.
+  programCardFocused: {
+    borderColor: '#FFFFFF',
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: rs(12),
+    right: rs(12),
+    width: rs(40),
+    height: rs(40),
+    borderRadius: rs(20),
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: rs(4),
+    shadowOffset: { width: 0, height: rs(2) },
+  },
+  selectedBadgeText: {
+    fontSize: rs(22),
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   programCardInner: {
     flex: 1,
@@ -434,12 +458,11 @@ const styles = StyleSheet.create({
     paddingVertical: rs(24),
     paddingHorizontal: rs(56),
     borderRadius: rs(16),
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: rs(3),
+    borderColor: 'transparent',
   },
   startButtonFocused: {
     borderColor: '#FFFFFF',
-    borderWidth: 3,
   },
   startButtonText: {
     fontSize: rs(34),
