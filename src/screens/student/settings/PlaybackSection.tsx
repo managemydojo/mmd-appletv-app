@@ -14,8 +14,10 @@ const PlaybackSection = () => {
   const {
     autoplayVideos,
     autoplaySound,
+    forceSdrPlayback,
     toggleAutoplayVideos,
     toggleAutoplaySound,
+    toggleForceSdrPlayback,
   } = useStudentSettingsStore();
 
   return (
@@ -94,6 +96,40 @@ const PlaybackSection = () => {
       </FocusableCard>
       <Text style={styles.helperText}>
         When autoplay is on, start playback with audio.
+      </Text>
+
+      {/* Force SDR Playback toggle */}
+      <FocusableCard
+        onPress={toggleForceSdrPlayback}
+        style={styles.card}
+        focusedStyle={styles.cardFocused}
+        wrapperStyle={styles.cardWrapper}
+        scaleOnFocus={false}
+      >
+        {() => (
+          <View style={styles.cardInner}>
+            <Text style={styles.cardLabel}>Force SDR Playback</Text>
+            <View
+              style={[
+                styles.toggle,
+                forceSdrPlayback ? styles.toggleOn : styles.toggleOff,
+              ]}
+            >
+              <View
+                style={[
+                  styles.toggleThumb,
+                  forceSdrPlayback
+                    ? styles.toggleThumbOn
+                    : styles.toggleThumbOff,
+                ]}
+              />
+            </View>
+          </View>
+        )}
+      </FocusableCard>
+      <Text style={styles.helperText}>
+        Disables HDR and Dolby Vision for video playback. Turn on if videos
+        crash to the home screen on your TV.
       </Text>
     </View>
   );

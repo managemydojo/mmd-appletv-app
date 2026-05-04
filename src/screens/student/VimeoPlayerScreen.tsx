@@ -11,8 +11,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StudentStackParamList } from '../../navigation';
 import { rs } from '../../theme/responsive';
 import { useWatchHistoryStore } from '../../store/useWatchHistoryStore';
-import Video, { OnProgressData, OnLoadData } from 'react-native-video';
+import Video, {
+  OnProgressData,
+  OnLoadData,
+  SelectedVideoTrackType,
+} from 'react-native-video';
 import { resolveVimeoUrl } from '../../utils/resolveVimeoUrl';
+import { useStudentSettingsStore } from '../../store/useStudentSettingsStore';
 import { getMediaType } from '../../utils/getMediaType';
 
 type VimeoPlayerRouteProp = RouteProp<StudentStackParamList, 'VideoPlayer'>;
@@ -33,6 +38,7 @@ const VimeoPlayerScreen: React.FC = () => {
   const route = useRoute<VimeoPlayerRouteProp>();
   const { videoUrl, title, contentId } = route.params;
   const { addToHistory, updateProgress } = useWatchHistoryStore();
+  const forceSdrPlayback = useStudentSettingsStore(s => s.forceSdrPlayback);
 
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,10 +76,16 @@ const VimeoPlayerScreen: React.FC = () => {
       addToHistory({ contentId, title: title || 'Unknown Video' });
     }
 
-    loadVideo(videoUrl);
+    // Force an unmount-then-mount of <Video>: clear the resolved URL,
+    // wait one frame so the unmount commits, then resolve the new URL.
+    // Avoids AVPlayer's swap-reload code path which races HDR session
+    // teardown when transitioning between videos.
+    setResolvedUrl(null);
+    const handle = requestAnimationFrame(() => loadVideo(videoUrl));
 
     // Save progress when leaving the screen
     return () => {
+      cancelAnimationFrame(handle);
       if (contentId && videoDuration.current > 0) {
         const percent = Math.round(
           (lastProgress.current / videoDuration.current) * 100,
@@ -102,7 +114,11 @@ const VimeoPlayerScreen: React.FC = () => {
     if (contentId) {
       updateProgress(contentId, 100);
     }
-    navigation.goBack();
+    // Unmount <Video> first so AVPlayer fully releases the display layer
+    // before the next screen pushes — mitigates an HDR/Dolby Vision crash
+    // that happens when the layer is still active during navigation.
+    setResolvedUrl(null);
+    requestAnimationFrame(() => navigation.goBack());
   };
 
   // ── Error state ──
@@ -156,6 +172,12 @@ const VimeoPlayerScreen: React.FC = () => {
           onEnd={handleEnd}
           progressUpdateInterval={5000}
           ignoreSilentSwitch="ignore"
+          maxBitRate={forceSdrPlayback ? 6_000_000 : undefined}
+          selectedVideoTrack={
+            forceSdrPlayback
+              ? { type: SelectedVideoTrackType.RESOLUTION, value: 1080 }
+              : undefined
+          }
         />
       )}
     </View>

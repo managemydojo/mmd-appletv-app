@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {
+  createNativeStackNavigator,
+  NativeStackScreenProps,
+} from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/useAuthStore';
 import { useTheme } from '../theme';
 import { View, ActivityIndicator, Text } from 'react-native';
@@ -21,6 +24,9 @@ import ProgramDetailScreen from '../screens/student/ProgramDetailScreen';
 import VimeoPlayerScreen from '../screens/student/VimeoPlayerScreen';
 import ImageViewerScreen from '../screens/student/ImageViewerScreen';
 import StudentSettingsScreen from '../screens/student/StudentSettingsScreen';
+
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+import { PlayerErrorFallback } from '../components/ui/PlayerErrorFallback';
 
 // Dojo Screens
 import DojoCastConnectScreen from '../screens/dojo/DojoCastConnectScreen';
@@ -91,6 +97,29 @@ const AuthNavigator = () => {
   );
 };
 
+/**
+ * Wraps VimeoPlayerScreen in an ErrorBoundary so an uncaught error from
+ * the native video stack — for example, AVPlayer dying mid-transition on
+ * an HDR/Dolby Vision device — keeps the user inside our UI instead of
+ * dropping them to the tvOS home screen. Try Again re-mounts the
+ * player; Go Back pops the navigator.
+ */
+const VimeoPlayerScreenWithBoundary: React.FC<
+  NativeStackScreenProps<StudentStackParamList, 'VideoPlayer'>
+> = props => (
+  <ErrorBoundary
+    onReset={() => props.navigation.goBack()}
+    fallback={reset => (
+      <PlayerErrorFallback
+        onTryAgain={reset}
+        onGoBack={() => props.navigation.goBack()}
+      />
+    )}
+  >
+    <VimeoPlayerScreen />
+  </ErrorBoundary>
+);
+
 const StudentNavigator = () => {
   const { theme } = useTheme();
   return (
@@ -115,7 +144,10 @@ const StudentNavigator = () => {
         name="ProgramDetail"
         component={ProgramDetailScreen}
       />
-      <StudentStack.Screen name="VideoPlayer" component={VimeoPlayerScreen} />
+      <StudentStack.Screen
+        name="VideoPlayer"
+        component={VimeoPlayerScreenWithBoundary}
+      />
       <StudentStack.Screen name="ImageViewer" component={ImageViewerScreen} />
       <StudentStack.Screen name="Settings" component={StudentSettingsScreen} />
     </StudentStack.Navigator>

@@ -3,6 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface Props {
   children: React.ReactNode;
+  /**
+   * Custom fallback UI. When provided, replaces the default error
+   * screen. Receives a `reset` callback that clears the error state
+   * (and runs `onReset` if supplied).
+   */
+  fallback?: (reset: () => void) => React.ReactNode;
+  /**
+   * Optional side effect to run when the user dismisses the error —
+   * e.g. `() => navigation.goBack()`. Runs AFTER the boundary clears
+   * its hasError state.
+   */
+  onReset?: () => void;
 }
 
 interface State {
@@ -38,10 +50,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
   handleRestart = () => {
     this.setState({ hasError: false, errorMessage: '' });
+    this.props.onReset?.();
   };
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback(this.handleRestart);
+      }
       return (
         <View style={styles.container}>
           <Text style={styles.emoji}>⚠️</Text>

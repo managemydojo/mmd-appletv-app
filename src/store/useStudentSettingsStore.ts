@@ -15,10 +15,18 @@ interface StudentSettingsState {
   autoplayVideos: boolean;
   /** Whether auto-played previews should play with audio (vs muted). */
   autoplaySound: boolean;
+  /**
+   * Force SDR playback. When true, the video player caps bitrate and
+   * resolution to keep AVPlayer/ExoPlayer on the SDR rendition of an
+   * HLS master playlist — works around a tvOS Dolby Vision/HDR crash
+   * when transitioning between videos.
+   */
+  forceSdrPlayback: boolean;
 
   // Actions
   toggleAutoplayVideos: () => void;
   toggleAutoplaySound: () => void;
+  toggleForceSdrPlayback: () => void;
 }
 
 export const useStudentSettingsStore = create<StudentSettingsState>()(
@@ -26,11 +34,14 @@ export const useStudentSettingsStore = create<StudentSettingsState>()(
     set => ({
       autoplayVideos: true,
       autoplaySound: false,
+      forceSdrPlayback: false,
 
       toggleAutoplayVideos: () =>
         set(s => ({ autoplayVideos: !s.autoplayVideos })),
       toggleAutoplaySound: () =>
         set(s => ({ autoplaySound: !s.autoplaySound })),
+      toggleForceSdrPlayback: () =>
+        set(s => ({ forceSdrPlayback: !s.forceSdrPlayback })),
     }),
     {
       name: 'student-settings',
