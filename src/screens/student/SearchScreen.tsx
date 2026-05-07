@@ -106,10 +106,16 @@ const SearchScreen = () => {
   }, []);
 
   // Initial fetch + debounced re-fetch on query change.
+  //
+  // Debounce is 600ms (vs the 300ms default) so a user typing at normal
+  // speed produces 1-2 API calls per word instead of one per keystroke.
+  // Single-character queries are skipped — they're almost always too
+  // generic to return useful results and add load on the API.
+  // Pressing Done (onSubmit) bypasses both rules for an immediate fetch.
   useEffect(() => {
-    const t = setTimeout(() => {
-      fetchResults((query ?? '').trim());
-    }, 300);
+    const trimmed = (query ?? '').trim();
+    if (trimmed.length === 1) return;
+    const t = setTimeout(() => fetchResults(trimmed), 600);
     return () => clearTimeout(t);
   }, [query, fetchResults]);
 

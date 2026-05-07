@@ -149,6 +149,7 @@ const ProgramDetailScreen: React.FC = () => {
     let cancelled = false;
     studyService
       .getStudyContentForContact({
+        limit: 250,
         categoryIds: [id],
         withoutPagination: true,
       })

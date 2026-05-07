@@ -106,19 +106,26 @@ const AuthNavigator = () => {
  */
 const VimeoPlayerScreenWithBoundary: React.FC<
   NativeStackScreenProps<StudentStackParamList, 'VideoPlayer'>
-> = props => (
-  <ErrorBoundary
-    onReset={() => props.navigation.goBack()}
-    fallback={reset => (
-      <PlayerErrorFallback
-        onTryAgain={reset}
-        onGoBack={() => props.navigation.goBack()}
-      />
-    )}
-  >
-    <VimeoPlayerScreen />
-  </ErrorBoundary>
-);
+> = props => {
+  const goBack = React.useCallback(
+    () => props.navigation.goBack(),
+    [props.navigation],
+  );
+  // Render-prop callback memoized so it's stable across renders. Stops
+  // ESLint's `react/no-unstable-nested-components` from flagging the
+  // inline JSX as a new component definition each render.
+  const renderFallback = React.useCallback(
+    (reset: () => void) => (
+      <PlayerErrorFallback onTryAgain={reset} onGoBack={goBack} />
+    ),
+    [goBack],
+  );
+  return (
+    <ErrorBoundary onReset={goBack} fallback={renderFallback}>
+      <VimeoPlayerScreen />
+    </ErrorBoundary>
+  );
+};
 
 const StudentNavigator = () => {
   const { theme } = useTheme();
